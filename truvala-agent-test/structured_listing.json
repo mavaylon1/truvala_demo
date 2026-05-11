@@ -1,0 +1,82 @@
+{
+  "address": "94 Yorktown",
+  "city": "Newport Beach",
+  "state": "CA",
+  "zip": 92660,
+  "price": 379000,
+  "original_price": 409000,
+  "beds": 2,
+  "baths": 2,
+  "sqft": 1029,
+  "lot_size_text": "12.75 acres",
+  "year_built": 1961,
+  "property_type": "Manufactured In Park",
+  "property_subtype": "Manufactured Home",
+  "hoa_fee_monthly": 0,
+  "land_lease_monthly": 3300,
+  "listing_status": "Active",
+  "days_on_market": 180,
+  "mls_number": "NP26000828",
+  "description": "MOTIVATED MOTIVATED MOTIVATED Bring all offers....There is a DEAL to be made here !!!! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n\nLive the Newport Beach \"waterfront\" lifestyle at an exceptional value in the all-ages community of Bayside Village. This move-in-ready 2-bedroom, 2-bath beach cottage offers approx. 1,029 sq ft of bright, open living space and sits on one of the largest and most private lots in the community—an increasingly rare feature in Newport Beach real estate.This updated home features large windows, newer flooring, crown molding, and a cozy fireplace. The remodeled kitchen includes quartz countertops, shaker cabinets, and a built-in beverage/wine fridge. A flexible second bedroom with custom barn doors functions perfectly as a guest room, home office, or bonus living space. The primary suite offers custom closets and a remodeled bathroom with walk-in shower.Enjoy true indoor-outdoor coastal living with a private yard ideal for entertaining, relaxing, or dining al fresco and two storage sheds. Two kayaks are included for immediate enjoyment.Bayside Village amenities include a private beach, kayak launch, Back Bay access, scenic bike trails, two resort-style clubhouses, pools, spas, fitness rooms, BBQ areas, fire pits, and a fenced dog park. Located just off PCH and minutes to Balboa Island, Fashion Island shopping, world-class beaches, dining, John Wayne Airport, Newport Dunes, and Back Bay parks.\nLand lease is $3,300/month and includes water, trash, and amenities. Why rent when you can own your place in Newport Beach?\nSee \"360\" tour above.",
+  "source_url": "https://www.trulia.com/home/94-yorktown-newport-beach-ca-92660-118261308",
+  "price_history": [
+    {
+      "date": "2026-04-17",
+      "price": 379000,
+      "event": "PriceChange",
+      "source": "CRMLS #NP26000828"
+    },
+    {
+      "date": "2026-02-05",
+      "price": 409000,
+      "event": "PriceChange",
+      "source": "CRMLS #NP26000828"
+    },
+    {
+      "date": "2026-01-03",
+      "price": 424500,
+      "event": "Listed For Sale",
+      "source": "CRMLS #NP26000828"
+    },
+    {
+      "date": "2024-05-30",
+      "price": 485000,
+      "event": "Sold",
+      "source": "CRMLS #IV24061155"
+    },
+    {
+      "date": "2024-05-15",
+      "price": 499000,
+      "event": "Pending",
+      "source": "CRMLS #IV24061155"
+    },
+    {
+      "date": "2024-04-17",
+      "price": 499000,
+      "event": "Contingent",
+      "source": "CRMLS #IV24061155"
+    },
+    {
+      "date": "2024-04-06",
+      "price": 499000,
+      "event": "Listed For Sale",
+      "source": "CRMLS #IV24061155"
+    }
+  ],
+  "warnings": [
+    "Lot size of 12.75 acres likely describes community/park land rather than owned land because the property is a manufactured home in a park."
+  ],
+  "missing_fields": [
+    "state (derived from California but explicitly stated as CA)",
+    "days_on_market (exact days not given, '180+ days' provided, 180 used)"
+  ],
+  "source_snippets": {
+    "price": "$379,000",
+    "beds_baths_sqft": "2 Beds\n2 Baths\n1,029 sqft",
+    "property_type": "Property Type: Manufactured In Park\nProperty Subtype: Manufactured Home",
+    "land_lease": "Land lease is $3,300/month and includes water, trash, and amenities.",
+    "hoa": "HOA Fee: No HOA Fee",
+    "year_built": "Year Built: 1961"
+  },
+  "extraction_confidence": "high"
+}
