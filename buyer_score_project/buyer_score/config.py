@@ -111,6 +111,31 @@ BUYER_FIT_V1_CONFIG = {
             "utility_type": "compatibility_matrix",
             "default_unknown_utility": 0.50,
             "compatibility_matrix": {
+                "single_story": {
+                    "single_story": 1.00,
+                    "two_story": 0.30,
+                    "three_plus_story": 0.10,
+                    "unknown": 0.50,
+                },
+                "two_story": {
+                    "single_story": 0.65,
+                    "two_story": 1.00,
+                    "three_plus_story": 0.60,
+                    "unknown": 0.50,
+                },
+                "three_plus_story": {
+                    "single_story": 0.30,
+                    "two_story": 0.65,
+                    "three_plus_story": 1.00,
+                    "unknown": 0.50,
+                },
+                "any": {
+                    "single_story": 1.00,
+                    "two_story": 1.00,
+                    "three_plus_story": 1.00,
+                    "unknown": 1.00,
+                },
+                # Legacy keys — kept so existing saved preferences don't break
                 "single_story_required": {
                     "single_story": 1.00,
                     "two_story": 0.10,
@@ -122,12 +147,6 @@ BUYER_FIT_V1_CONFIG = {
                     "two_story": 0.65,
                     "three_plus_story": 0.35,
                     "unknown": 0.60,
-                },
-                "any": {
-                    "single_story": 1.00,
-                    "two_story": 1.00,
-                    "three_plus_story": 1.00,
-                    "unknown": 1.00,
                 },
             },
         },

@@ -1,0 +1,9 @@
+{
+  "max_price": { "value": 500000, "importance": 5 },
+  "min_bedrooms": { "value": 2, "importance": 4 },
+  "min_bathrooms": { "value": 2, "importance": 3 },
+  "property_type": { "value": "single_family", "importance": 4 },
+  "max_distance_miles": { "value": 10, "importance": 2 },
+  "floors": { "value": "single_story_preferred", "importance": 2 },
+  "schools": { "value": 8, "importance": 1, "mode": "minimum_rating" }
+}
