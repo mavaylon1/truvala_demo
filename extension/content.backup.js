@@ -471,39 +471,14 @@
 
   // ─── Report HTML ──────────────────────────────────────────────────────────────
 
-  function buildRiskGauge(risk) {
-    const levels = ['Low', 'Medium', 'High'];
-    const colors = ['#10b981', '#f59e0b', '#ef4444'];
-    const r = (risk || '').toLowerCase();
-    const idx = r.includes('high') ? 2 : r.includes('low') && !r.includes('high') ? 0 : 1;
-    return `
-      <div style="margin-top:8px">
-        <div style="display:flex;gap:3px;height:6px;border-radius:3px;overflow:hidden">
-          ${levels.map((_, i) => `<div style="flex:1;background:${i <= idx ? colors[idx] : '#e2e8f0'};opacity:${i === idx ? 1 : i < idx ? 0.4 : 0.2}"></div>`).join('')}
-        </div>
-        <div style="display:flex;justify-content:space-between;margin-top:4px">
-          ${levels.map(l => `<span style="font-size:9px;color:#94a3b8">${l}</span>`).join('')}
-        </div>
-      </div>`;
-  }
-
-  function collapsibleList(items, dotClass, symbol, previewCount = 2) {
-    const id = `truvala-expand-${Math.random().toString(36).slice(2, 7)}`;
-    const all = items.map((text) => `
-      <li class="truvala-list-item">
-        <span class="truvala-list-dot ${dotClass}">${symbol}</span>
-        <span>${text}</span>
-      </li>`);
-    if (items.length <= previewCount) return `<ul class="truvala-list">${all.join('')}</ul>`;
-    return `
-      <ul class="truvala-list">${all.slice(0, previewCount).join('')}</ul>
-      <ul class="truvala-list" id="${id}" style="display:none;margin-top:9px">${all.slice(previewCount).join('')}</ul>
-      <button class="truvala-expand-btn" data-target="${id}" data-more="${items.length - previewCount}">
-        + ${items.length - previewCount} more ›
-      </button>`;
-  }
-
   function buildReportHTML(report) {
+    const listItems = (items, dotClass, symbol) =>
+      items.map((text) => `
+        <li class="truvala-list-item">
+          <span class="truvala-list-dot ${dotClass}">${symbol}</span>
+          <span>${text}</span>
+        </li>`).join('');
+
     const fieldChips = Object.values(report.field_scores).map((f) => {
       const pct = Math.round(f.utility * 100);
       return `
@@ -516,14 +491,6 @@
         </div>`;
     }).join('');
 
-    const PREVIEW = 160;
-    const summaryFull = report.summary;
-    const summaryShort = summaryFull.length > PREVIEW ? summaryFull.slice(0, PREVIEW).trim() + '…' : null;
-    const summaryHTML = summaryShort ? `
-      <p class="truvala-summary-text"><span id="truvala-summary-preview">${summaryShort}</span><span id="truvala-summary-full" style="display:none">${summaryFull}</span></p>
-      <button class="truvala-expand-btn" id="truvala-summary-toggle">Read full summary ›</button>
-    ` : `<p class="truvala-summary-text">${summaryFull}</p>`;
-
     return `
       <div class="truvala-score-section">
         <div class="truvala-score-ring-wrap">${buildScoreRing(report.score)}</div>
@@ -531,54 +498,32 @@
           <div class="truvala-score-label">Buyer Fit Score</div>
           <div class="truvala-score-value" style="color:${scoreColor(report.score)}">${report.score}</div>
           <span class="truvala-risk-badge ${riskClass(report.risk)}">${report.risk} risk</span>
-          ${buildRiskGauge(report.risk)}
-          <div class="truvala-capex-row" style="margin-top:4px">Est. capex: <strong>${report.capex_estimate}</strong></div>
+          <div class="truvala-capex-row">Est. capex: <strong>${report.capex_estimate}</strong></div>
         </div>
       </div>
-
       <div class="truvala-card">
-        <div class="truvala-card-title">
-          <span class="truvala-card-icon" style="background:#eff6ff;color:#1e3a8a">✦</span>
-          Summary
-        </div>
-        ${summaryHTML}
+        <div class="truvala-card-title">Summary</div>
+        <p class="truvala-summary-text">${report.summary}</p>
       </div>
-
       <div class="truvala-card">
-        <div class="truvala-card-title">
-          <span class="truvala-card-icon" style="background:#fef3c7;color:#b45309">!</span>
-          Warnings
-        </div>
-        ${collapsibleList(report.warnings, 'warning', '!', 3)}
+        <div class="truvala-card-title">Warnings</div>
+        <ul class="truvala-list">${listItems(report.warnings, 'warning', '!')}</ul>
       </div>
-
       ${report.monthly_costs ? `
-      <button id="truvala-costs-btn" style="width:100%;padding:13px 18px;border-radius:12px;border:none;background:#1e3a8a;color:#fff;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:space-between;font-family:-apple-system,sans-serif;box-shadow:0 4px 14px rgba(30,58,138,0.3);letter-spacing:-0.01em">
+      <button id="truvala-costs-btn" style="width:100%;padding:12px 16px;border-radius:12px;border:1.5px solid #e2e8f0;background:#fff;color:#1e3a8a;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;font-family:-apple-system,sans-serif;box-shadow:0 1px 4px rgba(15,23,42,0.06);text-align:left">
         <span>Monthly Costs &amp; Savings</span>
-        <span style="font-size:18px;opacity:0.7">›</span>
+        <span style="font-size:16px;opacity:0.5">›</span>
       </button>` : ''}
-
       <div class="truvala-card">
-        <div class="truvala-card-title">
-          <span class="truvala-card-icon" style="background:#d1fae5;color:#047857">✓</span>
-          What works for you
-        </div>
-        ${collapsibleList(report.positives, 'positive', '✓', 2)}
+        <div class="truvala-card-title">What works for you</div>
+        <ul class="truvala-list">${listItems(report.positives, 'positive', '✓')}</ul>
       </div>
-
       <div class="truvala-card">
-        <div class="truvala-card-title">
-          <span class="truvala-card-icon" style="background:#eff6ff;color:#2563eb">?</span>
-          Ask before you tour
-        </div>
-        ${collapsibleList(report.questions, 'question', '?', 2)}
+        <div class="truvala-card-title">Ask before you tour</div>
+        <ul class="truvala-list">${listItems(report.questions, 'question', '?')}</ul>
       </div>
-
       <div class="truvala-card">
-        <div class="truvala-card-title">
-          <span class="truvala-card-icon" style="background:#f1f5f9;color:#475569">≡</span>
-          Preference Breakdown
-        </div>
+        <div class="truvala-card-title">Preference Breakdown</div>
         <div class="truvala-fields-grid">${fieldChips}</div>
       </div>`;
   }
@@ -684,47 +629,13 @@
       const section = document.createElement('div');
       section.id = 'truvala-costs-section';
       section.innerHTML = buildCostsHTML(currentReport.monthly_costs, currentReport.ecosolar);
-      const costsBtn = document.getElementById('truvala-costs-btn');
-      if (costsBtn) {
-        costsBtn.after(section);
-      } else {
-        document.getElementById('truvala-panel-body').prepend(section);
-      }
+      document.getElementById('truvala-panel-body').prepend(section);
     };
     document.getElementById('truvala-costs-toggle').addEventListener('click', toggleCosts);
 
     // In-report button and financing toggle use delegation
     document.getElementById('truvala-panel-body').addEventListener('click', (e) => {
       if (e.target.closest('#truvala-costs-btn')) { toggleCosts(); return; }
-
-      // Summary expand
-      if (e.target.id === 'truvala-summary-toggle') {
-        const preview = document.getElementById('truvala-summary-preview');
-        const full    = document.getElementById('truvala-summary-full');
-        const btn     = document.getElementById('truvala-summary-toggle');
-        if (preview && full) {
-          const open = full.style.display !== 'none';
-          preview.style.display = open ? '' : 'none';
-          full.style.display    = open ? 'none' : '';
-          btn.textContent = open ? 'Read full summary ›' : 'Show less';
-        }
-        return;
-      }
-
-      // Collapsible list expand
-      const expandBtn = e.target.closest('.truvala-expand-btn[data-target]');
-      if (expandBtn) {
-        const target = document.getElementById(expandBtn.dataset.target);
-        if (target) {
-          const open = target.style.display !== 'none';
-          target.style.display = open ? 'none' : '';
-          expandBtn.textContent = open
-            ? `+ ${expandBtn.dataset.more} more ›`
-            : 'Show less';
-        }
-        return;
-      }
-
       if (e.target.closest('#truvala-eco-details-toggle')) {
         const details = document.getElementById('truvala-eco-details');
         const btn = document.getElementById('truvala-eco-details-toggle');
