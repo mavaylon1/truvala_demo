@@ -23,6 +23,8 @@ load_dotenv(Path.home() / ".env")
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "buyer_score_project"))
 from buyer_score import calculate_buyer_fit_score
+from cost_calculator import calculate_monthly_costs
+from partners.ecosolar import get_ecosolar_estimate
 
 app = FastAPI()
 
@@ -103,9 +105,21 @@ async def analyze(req: AnalyzeRequest):
         raise HTTPException(status_code=422, detail=f"Scoring failed: {e}")
 
     try:
-        return generate_report(structured, req.preferences, score_result)
+        report = generate_report(structured, req.preferences, score_result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Report generation failed: {e}")
+
+    # Monthly cost breakdown + EcoSolar (non-fatal if they fail)
+    report['monthly_costs'] = calculate_monthly_costs(structured)
+    if report['monthly_costs']:
+        zip_code = str(structured.get('zip') or '')
+        sqft     = structured.get('sqft')
+        utility  = report['monthly_costs']['utilities']
+        report['ecosolar'] = get_ecosolar_estimate(zip_code, sqft, utility)
+    else:
+        report['ecosolar'] = None
+
+    return report
 
 
 def extract_listing(raw_scrape: dict) -> dict:

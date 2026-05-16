@@ -102,6 +102,7 @@
   }
 
   function storeReport(report, address) {
+    console.log('[Truvala] report received:', JSON.stringify(report, null, 2));
     currentReport  = report;
     currentAddress = address;
 
@@ -114,7 +115,14 @@
 
     // Populate panel
     document.getElementById('truvala-address').textContent = address;
-    document.getElementById('truvala-panel-body').innerHTML = buildReportHTML(report);
+    const costsSnippet = buildCostsHTML(report.monthly_costs, report.ecosolar);
+    console.log('[Truvala] costsHTML length:', costsSnippet.length, '| first 200:', costsSnippet.slice(0, 200));
+    const fullHTML = buildReportHTML(report);
+    console.log('[Truvala] fullHTML starts with:', fullHTML.slice(0, 300));
+    const panelBody = document.getElementById('truvala-panel-body');
+    panelBody.innerHTML = fullHTML;
+    panelBody.scrollTop = 0;
+    console.log('[Truvala] first child tag:', panelBody.firstElementChild?.tagName, '| style:', panelBody.firstElementChild?.getAttribute('style')?.slice(0, 60));
 
     setState('panel');
   }
@@ -299,6 +307,148 @@
       <path d="M1 1l8 8M9 1L1 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
     </svg>`;
 
+  // ─── Cost breakdown HTML ─────────────────────────────────────────────────────
+
+  function fmt(n) {
+    return '$' + Math.round(n).toLocaleString();
+  }
+
+  function costRow(label, value, cls = '', note = '') {
+    return `
+      <div class="truvala-cost-row ${cls}">
+        <span class="truvala-cost-label">${label}</span>
+        <span class="truvala-cost-value">${value}</span>
+      </div>
+      ${note ? `<div class="truvala-cost-note">${note}</div>` : ''}`;
+  }
+
+  function buildSavingsChart(ecosolar) {
+    const { panel_monthly_payment, monthly_electric_savings, estimated_payoff_years } = ecosolar;
+    const MONTHS = 240;
+    const payoffM = Math.round((estimated_payoff_years || 0) * 12);
+    const duringRate = monthly_electric_savings - panel_monthly_payment;
+    const afterRate  = monthly_electric_savings;
+
+    const savingsAt = m => m <= payoffM
+      ? m * duringRate
+      : payoffM * duringRate + (m - payoffM) * afterRate;
+
+    const maxVal = savingsAt(MONTHS);
+    if (maxVal <= 0) return '';
+
+    const W = 296, H = 130;
+    const PL = 36, PR = 8, PT = 18, PB = 20;
+    const cW = W - PL - PR, cH = H - PT - PB;
+    const sx = m => PL + (m / MONTHS) * cW;
+    const sy = v => PT + cH - (Math.max(0, v) / maxVal) * cH;
+
+    const pts = [];
+    for (let m = 0; m <= MONTHS; m += 4) {
+      if (pts.length && pts[pts.length - 1] < payoffM && m > payoffM) pts.push(payoffM);
+      pts.push(m);
+    }
+    const line = pts.map((m, i) => `${i === 0 ? 'M' : 'L'}${sx(m).toFixed(1)},${sy(savingsAt(m)).toFixed(1)}`).join(' ');
+    const area = `${line} L${sx(MONTHS).toFixed(1)},${sy(0).toFixed(1)} L${sx(0).toFixed(1)},${sy(0).toFixed(1)}Z`;
+    const px = sx(payoffM).toFixed(1);
+
+    return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="display:block;overflow:visible;margin:0 auto">
+      <path d="${area}" fill="rgba(16,185,129,0.12)"/>
+      <path d="${line}" fill="none" stroke="#10b981" stroke-width="2" stroke-linejoin="round"/>
+      ${payoffM > 6 ? `<line x1="${px}" y1="${PT}" x2="${px}" y2="${PT+cH}" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,2"/>
+      <text x="${px}" y="${PT-4}" font-size="8" fill="#64748b" text-anchor="middle" font-family="-apple-system,sans-serif">Paid off</text>` : ''}
+      <text x="${PL-4}" y="${PT+4}" font-size="8" fill="#94a3b8" text-anchor="end" font-family="-apple-system,sans-serif">$${Math.round(maxVal/1000)}k</text>
+      <text x="${PL-4}" y="${PT+cH+4}" font-size="8" fill="#94a3b8" text-anchor="end" font-family="-apple-system,sans-serif">$0</text>
+      <text x="${PL}" y="${H-3}" font-size="8" fill="#94a3b8" font-family="-apple-system,sans-serif">Now</text>
+      <text x="${W-PR}" y="${H-3}" font-size="8" fill="#94a3b8" text-anchor="end" font-family="-apple-system,sans-serif">20 yrs</text>
+      <text x="${(W-PR-2)}" y="${sy(maxVal)-5}" font-size="9" fill="#059669" text-anchor="end" font-weight="700" font-family="-apple-system,sans-serif">+${fmt(maxVal)} saved</text>
+    </svg>`;
+  }
+
+  function buildCostsHTML(costs, ecosolar) {
+    if (!costs) return '';
+
+    const { mortgage, property_tax, hoa, hoa_note, land_lease, utilities, total, assumptions } = costs;
+    const rate = (assumptions.interest_rate * 100).toFixed(2);
+
+    const css = (obj) => Object.entries(obj).map(([k, v]) => `${k.replace(/([A-Z])/g, '-$1').toLowerCase()}:${v}`).join(';');
+
+    const card   = css({ background: 'rgba(255,255,255,0.92)', border: '1px solid rgba(226,232,240,0.9)', borderRadius: '14px', overflow: 'hidden', marginBottom: '0', fontFamily: '-apple-system,BlinkMacSystemFont,sans-serif' });
+    const title  = css({ fontSize: '11px', fontWeight: '600', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.07em', padding: '14px 16px 8px', display: 'block' });
+    const rows   = css({ padding: '0 16px 14px', display: 'flex', flexDirection: 'column', gap: '7px' });
+    const rowS   = css({ display: 'flex', justifyContent: 'space-between', alignItems: 'center' });
+    const lbl    = css({ fontSize: '12.5px', color: '#475569' });
+    const val    = css({ fontSize: '12.5px', fontWeight: '600', color: '#1e293b' });
+    const bold   = css({ fontSize: '13px', fontWeight: '700', color: '#0f172a' });
+    const hr     = `<div style="height:1px;background:rgba(226,232,240,0.9);margin:4px 0"></div>`;
+    const grn    = css({ fontSize: '12.5px', fontWeight: '600', color: '#059669' });
+    const red    = css({ fontSize: '12.5px', fontWeight: '600', color: '#dc2626' });
+    const note   = css({ fontSize: '11px', color: '#94a3b8', lineHeight: '1.5', padding: '8px 16px 12px', borderTop: '1px solid rgba(226,232,240,0.6)' });
+
+    const row = (l, v, vStyle = val) =>
+      `<div style="${rowS}"><span style="${lbl}">${l}</span><span style="${vStyle}">${v}</span></div>`;
+
+    let costRows = row(`Mortgage (${assumptions.down_payment_pct * 100}% down, ${rate}% APR)`, `${fmt(mortgage)}/mo`);
+    costRows += row('Property Tax', `${fmt(property_tax)}/mo`);
+    costRows += row('HOA', `${fmt(hoa)}/mo`);
+    if (hoa_note) costRows += `<div style="font-size:11px;color:#d97706;margin-top:-4px">⚠ ${hoa_note}</div>`;
+    if (land_lease) costRows += row('Land Lease', `${fmt(land_lease)}/mo`);
+    costRows += row('Utilities (est.)', `${fmt(utilities)}/mo`);
+
+    let ecoHTML = '';
+    if (ecosolar) {
+      const { logo_url, system_size_kw, system_total_cost, panel_monthly_payment,
+              monthly_electric_savings, net_monthly_impact, estimated_payoff_years, note: ecoNote } = ecosolar;
+
+      const afterPayoffTotal = total - utilities + Math.max(0, utilities - monthly_electric_savings);
+      const monthlySavedAfter = monthly_electric_savings;
+      const chart = buildSavingsChart(ecosolar);
+
+      const heroStyle = css({ background: 'linear-gradient(135deg,#f0fdf4,#dcfce7)', borderTop: '1px solid rgba(226,232,240,0.9)', padding: '16px' });
+      const heroNum   = css({ fontSize: '28px', fontWeight: '700', color: '#059669', lineHeight: '1', letterSpacing: '-0.03em' });
+      const heroSub   = css({ fontSize: '12px', color: '#047857', marginTop: '2px' });
+      const heroCap   = css({ fontSize: '11px', fontWeight: '600', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '6px' });
+
+      const detailToggle = css({ width: '100%', padding: '9px 16px', background: 'none', border: 'none', borderTop: '1px solid rgba(226,232,240,0.7)', color: '#64748b', fontSize: '12px', fontWeight: '500', cursor: 'pointer', textAlign: 'left', fontFamily: '-apple-system,sans-serif', display: 'flex', justifyContent: 'space-between', alignItems: 'center' });
+      const detailRows  = css({ padding: '0 16px 14px', display: 'flex', flexDirection: 'column', gap: '6px' });
+
+      ecoHTML = `
+        <div style="display:flex;align-items:center;gap:10px;padding:14px 16px 10px;border-top:1px solid rgba(226,232,240,0.9)">
+          <img src="${logo_url}" alt="EcoSolar USA" style="height:26px;width:auto;object-fit:contain">
+          <span style="font-size:10px;font-weight:600;color:#059669;background:#d1fae5;padding:2px 7px;border-radius:999px;text-transform:uppercase;letter-spacing:.05em">Partner</span>
+        </div>
+
+        <div style="${heroStyle}">
+          <div style="${heroCap}">After panels paid off (est. ${estimated_payoff_years} yrs)</div>
+          <div style="${heroNum}">${fmt(monthlySavedAfter)}<span style="font-size:14px;font-weight:500">/mo saved</span></div>
+          <div style="${heroSub}">New monthly total: ${fmt(afterPayoffTotal)}/mo · Down from ${fmt(total)}/mo</div>
+        </div>
+
+        ${chart ? `<div style="padding:14px 16px 8px">
+          <div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">Cumulative Savings Over Time</div>
+          ${chart}
+        </div>` : ''}
+
+        <button id="truvala-eco-details-toggle" style="${detailToggle}">
+          <span>View financing details</span><span>›</span>
+        </button>
+        <div id="truvala-eco-details" style="display:none;${detailRows}">
+          ${row(`${system_size_kw} kW system upfront`, fmt(system_total_cost))}
+          ${row('Monthly panel financing', `-${fmt(panel_monthly_payment)}/mo`, red)}
+          ${row('Monthly electric savings', `+${fmt(monthly_electric_savings)}/mo`, grn)}
+          ${hr}
+          ${row('Net savings during financing', `${fmt(Math.abs(net_monthly_impact))}/mo`, net_monthly_impact <= 0 ? grn : val)}
+        </div>
+        <div style="${note}">${ecoNote}</div>`;
+    }
+
+    return `
+      <div style="${card}">
+        <span style="${title}">Monthly Cost Estimate</span>
+        <div style="${rows}">${costRows}${hr}${row('Estimated Total', `${fmt(total)}/mo`, bold)}</div>
+        ${ecoHTML}
+      </div>`;
+  }
+
   // ─── Score ring ───────────────────────────────────────────────────────────────
 
   function buildScoreRing(score) {
@@ -321,14 +471,39 @@
 
   // ─── Report HTML ──────────────────────────────────────────────────────────────
 
-  function buildReportHTML(report) {
-    const listItems = (items, dotClass, symbol) =>
-      items.map((text) => `
-        <li class="truvala-list-item">
-          <span class="truvala-list-dot ${dotClass}">${symbol}</span>
-          <span>${text}</span>
-        </li>`).join('');
+  function buildRiskGauge(risk) {
+    const levels = ['Low', 'Medium', 'High'];
+    const colors = ['#10b981', '#f59e0b', '#ef4444'];
+    const r = (risk || '').toLowerCase();
+    const idx = r.includes('high') ? 2 : r.includes('low') && !r.includes('high') ? 0 : 1;
+    return `
+      <div style="margin-top:8px">
+        <div style="display:flex;gap:3px;height:6px;border-radius:3px;overflow:hidden">
+          ${levels.map((_, i) => `<div style="flex:1;background:${i <= idx ? colors[idx] : '#e2e8f0'};opacity:${i === idx ? 1 : i < idx ? 0.4 : 0.2}"></div>`).join('')}
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:4px">
+          ${levels.map(l => `<span style="font-size:9px;color:#94a3b8">${l}</span>`).join('')}
+        </div>
+      </div>`;
+  }
 
+  function collapsibleList(items, dotClass, symbol, previewCount = 2) {
+    const id = `truvala-expand-${Math.random().toString(36).slice(2, 7)}`;
+    const all = items.map((text) => `
+      <li class="truvala-list-item">
+        <span class="truvala-list-dot ${dotClass}">${symbol}</span>
+        <span>${text}</span>
+      </li>`);
+    if (items.length <= previewCount) return `<ul class="truvala-list">${all.join('')}</ul>`;
+    return `
+      <ul class="truvala-list">${all.slice(0, previewCount).join('')}</ul>
+      <ul class="truvala-list" id="${id}" style="display:none;margin-top:9px">${all.slice(previewCount).join('')}</ul>
+      <button class="truvala-expand-btn" data-target="${id}" data-more="${items.length - previewCount}">
+        + ${items.length - previewCount} more ›
+      </button>`;
+  }
+
+  function buildReportHTML(report) {
     const fieldChips = Object.values(report.field_scores).map((f) => {
       const pct = Math.round(f.utility * 100);
       return `
@@ -341,6 +516,14 @@
         </div>`;
     }).join('');
 
+    const PREVIEW = 160;
+    const summaryFull = report.summary;
+    const summaryShort = summaryFull.length > PREVIEW ? summaryFull.slice(0, PREVIEW).trim() + '…' : null;
+    const summaryHTML = summaryShort ? `
+      <p class="truvala-summary-text"><span id="truvala-summary-preview">${summaryShort}</span><span id="truvala-summary-full" style="display:none">${summaryFull}</span></p>
+      <button class="truvala-expand-btn" id="truvala-summary-toggle">Read full summary ›</button>
+    ` : `<p class="truvala-summary-text">${summaryFull}</p>`;
+
     return `
       <div class="truvala-score-section">
         <div class="truvala-score-ring-wrap">${buildScoreRing(report.score)}</div>
@@ -348,27 +531,54 @@
           <div class="truvala-score-label">Buyer Fit Score</div>
           <div class="truvala-score-value" style="color:${scoreColor(report.score)}">${report.score}</div>
           <span class="truvala-risk-badge ${riskClass(report.risk)}">${report.risk} risk</span>
-          <div class="truvala-capex-row">Est. capex: <strong>${report.capex_estimate}</strong></div>
+          ${buildRiskGauge(report.risk)}
+          <div class="truvala-capex-row" style="margin-top:4px">Est. capex: <strong>${report.capex_estimate}</strong></div>
         </div>
       </div>
+
       <div class="truvala-card">
-        <div class="truvala-card-title">Summary</div>
-        <p class="truvala-summary-text">${report.summary}</p>
+        <div class="truvala-card-title">
+          <span class="truvala-card-icon" style="background:#eff6ff;color:#1e3a8a">✦</span>
+          Summary
+        </div>
+        ${summaryHTML}
       </div>
+
       <div class="truvala-card">
-        <div class="truvala-card-title">Warnings</div>
-        <ul class="truvala-list">${listItems(report.warnings, 'warning', '!')}</ul>
+        <div class="truvala-card-title">
+          <span class="truvala-card-icon" style="background:#fef3c7;color:#b45309">!</span>
+          Warnings
+        </div>
+        ${collapsibleList(report.warnings, 'warning', '!', 3)}
       </div>
+
+      ${report.monthly_costs ? `
+      <button id="truvala-costs-btn" style="width:100%;padding:13px 18px;border-radius:12px;border:none;background:#1e3a8a;color:#fff;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:space-between;font-family:-apple-system,sans-serif;box-shadow:0 4px 14px rgba(30,58,138,0.3);letter-spacing:-0.01em">
+        <span>Monthly Costs &amp; Savings</span>
+        <span style="font-size:18px;opacity:0.7">›</span>
+      </button>` : ''}
+
       <div class="truvala-card">
-        <div class="truvala-card-title">What works for you</div>
-        <ul class="truvala-list">${listItems(report.positives, 'positive', '✓')}</ul>
+        <div class="truvala-card-title">
+          <span class="truvala-card-icon" style="background:#d1fae5;color:#047857">✓</span>
+          What works for you
+        </div>
+        ${collapsibleList(report.positives, 'positive', '✓', 2)}
       </div>
+
       <div class="truvala-card">
-        <div class="truvala-card-title">Ask before you tour</div>
-        <ul class="truvala-list">${listItems(report.questions, 'question', '?')}</ul>
+        <div class="truvala-card-title">
+          <span class="truvala-card-icon" style="background:#eff6ff;color:#2563eb">?</span>
+          Ask before you tour
+        </div>
+        ${collapsibleList(report.questions, 'question', '?', 2)}
       </div>
+
       <div class="truvala-card">
-        <div class="truvala-card-title">Preference Breakdown</div>
+        <div class="truvala-card-title">
+          <span class="truvala-card-icon" style="background:#f1f5f9;color:#475569">≡</span>
+          Preference Breakdown
+        </div>
         <div class="truvala-fields-grid">${fieldChips}</div>
       </div>`;
   }
@@ -415,6 +625,7 @@
             <div class="truvala-panel-logo">Truvala</div>
             <div class="truvala-panel-address" id="truvala-address"></div>
           </div>
+          <button id="truvala-costs-toggle" style="font-size:11px;font-weight:600;padding:4px 10px;border-radius:8px;border:1.5px solid #e2e8f0;background:#f8fafc;color:#1e3a8a;cursor:pointer">Costs</button>
           <button class="truvala-panel-close" id="truvala-panel-close" aria-label="Close report">
             ${ICON_CLOSE}
           </button>
@@ -463,6 +674,64 @@
     // Panel close: minimize
     document.getElementById('truvala-panel-close').addEventListener('click', () => {
       setState('minimized');
+    });
+
+    // Costs toggle — header button and in-report button both trigger this
+    const toggleCosts = () => {
+      const existing = document.getElementById('truvala-costs-section');
+      if (existing) { existing.remove(); return; }
+      if (!currentReport?.monthly_costs) return;
+      const section = document.createElement('div');
+      section.id = 'truvala-costs-section';
+      section.innerHTML = buildCostsHTML(currentReport.monthly_costs, currentReport.ecosolar);
+      document.getElementById('truvala-panel-body').prepend(section);
+    };
+    document.getElementById('truvala-costs-toggle').addEventListener('click', toggleCosts);
+
+    // In-report button and financing toggle use delegation
+    document.getElementById('truvala-panel-body').addEventListener('click', (e) => {
+      if (e.target.closest('#truvala-costs-btn')) { toggleCosts(); return; }
+
+      // Summary expand
+      if (e.target.id === 'truvala-summary-toggle') {
+        const preview = document.getElementById('truvala-summary-preview');
+        const full    = document.getElementById('truvala-summary-full');
+        const btn     = document.getElementById('truvala-summary-toggle');
+        if (preview && full) {
+          const open = full.style.display !== 'none';
+          preview.style.display = open ? '' : 'none';
+          full.style.display    = open ? 'none' : '';
+          btn.textContent = open ? 'Read full summary ›' : 'Show less';
+        }
+        return;
+      }
+
+      // Collapsible list expand
+      const expandBtn = e.target.closest('.truvala-expand-btn[data-target]');
+      if (expandBtn) {
+        const target = document.getElementById(expandBtn.dataset.target);
+        if (target) {
+          const open = target.style.display !== 'none';
+          target.style.display = open ? 'none' : '';
+          expandBtn.textContent = open
+            ? `+ ${expandBtn.dataset.more} more ›`
+            : 'Show less';
+        }
+        return;
+      }
+
+      if (e.target.closest('#truvala-eco-details-toggle')) {
+        const details = document.getElementById('truvala-eco-details');
+        const btn = document.getElementById('truvala-eco-details-toggle');
+        if (details) {
+          const open = details.style.display !== 'none';
+          details.style.display = open ? 'none' : 'flex';
+          details.style.flexDirection = 'column';
+          details.style.gap = '6px';
+          btn.querySelector('span:last-child').textContent = open ? '›' : '˅';
+          btn.querySelector('span:first-child').textContent = open ? 'View financing details' : 'Hide financing details';
+        }
+      }
     });
 
     // Analyze button (delegated — button is re-rendered on each prefs render)
