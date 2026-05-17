@@ -311,9 +311,6 @@
   display: flex;
   align-items: center;
   gap: 18px;
-  background: rgba(255, 255, 255, 0.75);
-  border: 1px solid rgba(226, 232, 240, 0.8);
-  border-radius: 16px;
   padding: 16px;
 }
 
@@ -456,35 +453,13 @@
 .truvala-list-dot.positive { background: #d1fae5; color: #047857; }
 .truvala-list-dot.question { background: #eff6ff; color: #2563eb; }
 
-/* Field breakdown */
-
-.truvala-fields-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-
-.truvala-field-chip {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  padding: 10px 12px;
-}
-
-.truvala-field-name {
-  font-size: 11px;
-  font-weight: 600;
-  color: #94a3b8;
-  text-transform: capitalize;
-  margin-bottom: 5px;
-}
+/* Score card + breakdown */
 
 .truvala-field-bar-track {
   height: 4px;
   background: #e2e8f0;
   border-radius: 2px;
   overflow: hidden;
-  margin-bottom: 5px;
 }
 
 .truvala-field-bar-fill {
@@ -492,11 +467,183 @@
   border-radius: 2px;
 }
 
-.truvala-field-explanation {
-  font-size: 11px;
-  color: #94a3b8;
-  line-height: 1.4;
+.truvala-score-card {
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: 16px;
 }
+
+.truvala-score-card .truvala-score-section {
+  background: none;
+  border: none;
+  border-radius: 0;
+}
+
+.truvala-breakdown-toggle {
+  width: 100%;
+  padding: 9px 16px;
+  background: none;
+  border: none;
+  border-top: 1px solid rgba(226, 232, 240, 0.7);
+  border-radius: 0 0 16px 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.truvala-breakdown-toggle:hover {
+  background: rgba(248, 250, 252, 0.8);
+  color: #334155;
+}
+
+.truvala-breakdown-main-chevron {
+  font-size: 13px;
+  transition: transform 0.2s ease;
+}
+
+.truvala-breakdown-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 12px;
+  border-top: 1px solid rgba(226, 232, 240, 0.7);
+}
+
+.truvala-breakdown-chip {
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 11px;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  transition: background 0.13s ease, border-color 0.13s ease, box-shadow 0.13s ease;
+}
+
+.truvala-breakdown-chip:hover {
+  background: #fff;
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+}
+
+.truvala-breakdown-chip.active {
+  border-color: #1e3a8a;
+  background: #eff6ff;
+}
+
+.truvala-breakdown-chip-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.truvala-breakdown-chip-name {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.truvala-breakdown-chip-pct {
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* Field detail popover */
+
+.truvala-field-popover {
+  position: fixed;
+  z-index: 2147483645;
+  background: white;
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  border-radius: 12px;
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.18), 0 2px 8px rgba(0, 0, 0, 0.08);
+  padding: 13px 14px 14px;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.truvala-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.truvala-popover-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.truvala-popover-close {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: none;
+  background: #f1f5f9;
+  color: #64748b;
+  cursor: pointer;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  flex-shrink: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  transition: background 0.13s ease, color 0.13s ease;
+}
+
+.truvala-popover-close:hover {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.truvala-popover-pref {
+  font-size: 12.5px;
+  color: #475569;
+}
+
+.truvala-popover-pref strong {
+  color: #1e293b;
+  font-weight: 600;
+}
+
+.truvala-popover-imp {
+  font-size: 12px;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.truvala-popover-expl {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.55;
+  border-top: 1px solid rgba(226, 232, 240, 0.7);
+  padding-top: 8px;
+}
+
+.truvala-imp-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.imp-low  { background: #f1f5f9; color: #64748b; }
+.imp-med  { background: #fef3c7; color: #92400e; }
+.imp-high { background: #dbeafe; color: #1e3a8a; }
 
 /* Footer */
 
@@ -918,3 +1065,811 @@
   border-color: #cbd5e1;
   color: #334155;
 }
+
+/* ─── Risk Analysis ──────────────────────────────────────────────────────────── */
+
+.truvala-risk-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.truvala-risk-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+  gap: 10px;
+}
+
+.truvala-risk-header-stats {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.truvala-risk-stat {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+  white-space: nowrap;
+}
+
+.truvala-risk-stat-high {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+/* Module rows */
+
+.truvala-risk-module {
+  border-top: 1px solid rgba(226, 232, 240, 0.7);
+}
+
+.truvala-risk-module:first-of-type {
+  border-top: none;
+}
+
+.truvala-risk-module-btn {
+  width: 100%;
+  padding: 11px 16px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  transition: background 0.13s ease;
+}
+
+.truvala-risk-module-btn:hover { background: rgba(248, 250, 252, 0.8); }
+
+.truvala-risk-module-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  text-align: left;
+}
+
+.truvala-risk-module-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.truvala-module-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.truvala-badge-warn  { background: #fef3c7; color: #92400e; }
+.truvala-badge-clear { background: #d1fae5; color: #065f46; }
+
+.truvala-risk-chevron {
+  font-size: 14px;
+  color: #94a3b8;
+  transition: transform 0.2s ease;
+}
+
+/* Module body */
+
+.truvala-risk-module-body {
+  border-top: 1px solid rgba(226, 232, 240, 0.6);
+}
+
+.truvala-risk-subsection {
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.5);
+}
+
+.truvala-risk-subsection:last-child { border-bottom: none; }
+
+.truvala-subsection-signals  { background: rgba(254, 243, 199, 0.2); }
+.truvala-subsection-inferred { background: rgba(241, 245, 249, 0.6); }
+.truvala-subsection-questions { background: rgba(239, 246, 255, 0.4); }
+
+.truvala-risk-sub-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 7px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.truvala-inferred-tag {
+  font-size: 9.5px;
+  font-weight: 600;
+  background: #e2e8f0;
+  color: #64748b;
+  padding: 1px 6px;
+  border-radius: 999px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* Risk items */
+
+.truvala-risk-item {
+  font-size: 12.5px;
+  color: #334155;
+  line-height: 1.5;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.truvala-risk-item:last-child { margin-bottom: 0; }
+
+.truvala-signal-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
+.truvala-fact-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #cbd5e1;
+  flex-shrink: 0;
+  margin-top: 6px;
+}
+
+.truvala-inferred-item {
+  color: #64748b;
+  font-style: italic;
+  display: block;
+}
+
+.truvala-question-arrow {
+  color: #2563eb;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+/* Verification checklist */
+
+.truvala-checklist-group-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 8px;
+}
+
+.truvala-checklist-item {
+  background: #fff;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 10px;
+  padding: 11px 12px;
+  margin-bottom: 7px;
+}
+
+.truvala-checklist-item:last-child { margin-bottom: 0; }
+
+.truvala-checklist-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+
+.truvala-checklist-priority {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  margin-top: 1px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.priority-high   { background: #fee2e2; color: #991b1b; }
+.priority-medium { background: #fef3c7; color: #92400e; }
+.priority-low    { background: #f1f5f9; color: #64748b; }
+
+.truvala-checklist-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #1e293b;
+  line-height: 1.4;
+}
+
+.truvala-checklist-why {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.5;
+  margin-bottom: 7px;
+}
+
+.truvala-checklist-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.truvala-checklist-cost {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #334155;
+  background: #f1f5f9;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.truvala-checklist-ask {
+  font-size: 11.5px;
+  color: #64748b;
+}
+
+/* Interpreted risk */
+
+.truvala-interpreted-risk {
+  padding: 12px 16px 14px;
+  border-top: 1px solid rgba(226, 232, 240, 0.7);
+  background: rgba(248, 250, 252, 0.6);
+}
+
+.truvala-interpreted-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+
+.truvala-interpreted-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.truvala-ai-tag {
+  font-size: 10px;
+  font-weight: 700;
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+  padding: 1px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.04em;
+}
+
+.truvala-interpreted-note {
+  font-size: 11px;
+  color: #94a3b8;
+  margin: 0 0 8px;
+  font-style: italic;
+}
+
+.truvala-interpreted-item {
+  font-size: 12.5px;
+  color: #475569;
+  line-height: 1.55;
+  margin-bottom: 5px;
+}
+
+.truvala-interpreted-subheader {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin: 10px 0 6px;
+}
+
+/* ─── Risk drawer ────────────────────────────────────────────────────────────── */
+
+#truvala-risk-drawer {
+  position: fixed !important;
+  top: 0 !important;
+  right: 420px !important;
+  bottom: 0 !important;
+  z-index: 2147483640 !important;
+  width: 400px;
+  max-width: calc(100vw - 420px);
+  background: rgba(248, 250, 252, 0.97);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border-left: 1px solid rgba(203, 213, 225, 0.9);
+  box-shadow: -16px 0 60px rgba(15, 23, 42, 0.14);
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(16px);
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+#truvala-risk-drawer.truvala-visible {
+  opacity: 1;
+  pointer-events: all;
+  transform: translateX(0);
+}
+
+.truvala-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 18px 14px;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+  background: rgba(255, 255, 255, 0.65);
+  flex-shrink: 0;
+}
+
+.truvala-drawer-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1e3a8a;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: -0.01em;
+}
+
+/* Risk modules pane — independent scroll */
+
+.truvala-drawer-modules {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.truvala-drawer-modules::-webkit-scrollbar { width: 4px; }
+.truvala-drawer-modules::-webkit-scrollbar-track { background: transparent; }
+.truvala-drawer-modules::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
+
+/* Chat pane — fixed height, independent scroll */
+
+.truvala-drawer-chat {
+  flex: 0 0 520px;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid rgba(226, 232, 240, 0.9);
+  overflow: hidden;
+  background: rgba(248, 250, 252, 0.5);
+}
+
+.truvala-drawer-chat .truvala-chat-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 0 16px;
+  min-height: 0;
+}
+
+.truvala-drawer-chat .truvala-chat-divider {
+  padding: 10px 0 8px;
+  flex-shrink: 0;
+}
+
+.truvala-drawer-chat .truvala-chat-log {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  padding-bottom: 8px;
+}
+
+.truvala-drawer-chat .truvala-chat-log::-webkit-scrollbar { width: 3px; }
+.truvala-drawer-chat .truvala-chat-log::-webkit-scrollbar-track { background: transparent; }
+.truvala-drawer-chat .truvala-chat-log::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
+
+.truvala-drawer-empty {
+  font-size: 13px;
+  color: #94a3b8;
+  padding: 24px;
+  text-align: center;
+}
+
+/* Module cards in risk pane */
+
+.truvala-drawer-modules .truvala-risk-module {
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 14px !important;
+  border: 1px solid rgba(203, 213, 225, 0.9) !important;
+  border-top: 1px solid rgba(203, 213, 225, 0.9) !important;
+  box-shadow: 0 1px 6px rgba(15, 23, 42, 0.06);
+}
+
+.truvala-drawer-modules .truvala-risk-module-btn {
+  border-radius: 14px 14px 0 0;
+}
+
+.truvala-drawer-modules .truvala-risk-module-btn:hover {
+  background: rgba(248, 250, 252, 0.9);
+}
+
+.truvala-drawer-modules .truvala-risk-module-body {
+  border-radius: 0 0 14px 14px;
+  overflow: hidden;
+}
+
+.truvala-drawer-modules .truvala-interpreted-risk {
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 14px;
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  border-top: 1px solid rgba(203, 213, 225, 0.9);
+  box-shadow: 0 1px 6px rgba(15, 23, 42, 0.06);
+}
+
+/* ─── Compact risk card ──────────────────────────────────────────────────────── */
+
+.truvala-risk-compact-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.truvala-risk-compact-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 10px;
+  gap: 10px;
+}
+
+.truvala-risk-cat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 10px 14px 14px;
+}
+
+.truvala-risk-cat-card {
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 11px;
+  padding: 11px 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.truvala-risk-cat-name {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.truvala-risk-gauge {
+  display: flex;
+  gap: 3px;
+}
+
+.truvala-gauge-seg {
+  flex: 1;
+  height: 5px;
+  border-radius: 3px;
+}
+
+.truvala-risk-cat-footer {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.truvala-risk-cat-level {
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.truvala-risk-cat-desc {
+  font-size: 10.5px;
+  color: #94a3b8;
+  text-align: right;
+  line-height: 1.35;
+}
+
+.truvala-risk-cat-empty {
+  font-size: 12.5px;
+  color: #94a3b8;
+  padding: 6px 16px 12px;
+  margin: 0;
+}
+
+.truvala-full-risk-btn {
+  width: 100%;
+  padding: 11px 16px;
+  background: none;
+  border: none;
+  border-top: 1px solid rgba(226, 232, 240, 0.7);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e3a8a;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  transition: background 0.13s ease;
+}
+
+.truvala-full-risk-btn:hover { background: rgba(239, 246, 255, 0.7); }
+
+.truvala-full-risk-arrow {
+  font-size: 16px;
+  opacity: 0.65;
+}
+
+/* ─── Button hover animations ────────────────────────────────────────────────── */
+
+/* Full risk report — arrow springs right on hover */
+
+.truvala-full-risk-arrow {
+  display: inline-block;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.15s ease;
+}
+
+.truvala-full-risk-btn:hover .truvala-full-risk-arrow {
+  transform: translateX(6px);
+  opacity: 1;
+}
+
+/* Monthly Costs — shimmer sweep + arrow nudge + deeper shadow */
+
+#truvala-costs-btn {
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+#truvala-costs-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -80%;
+  width: 55%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.13),
+    transparent
+  );
+  transition: left 0.55s ease;
+  pointer-events: none;
+}
+
+#truvala-costs-btn:hover::before {
+  left: 140%;
+}
+
+#truvala-costs-btn:hover {
+  box-shadow: 0 8px 24px rgba(30, 58, 138, 0.5) !important;
+}
+
+#truvala-costs-btn span:last-child {
+  display: inline-block;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+#truvala-costs-btn:hover span:last-child {
+  transform: translateX(5px);
+}
+
+/* Risk module toggle — chevron springs right on hover */
+
+.truvala-risk-chevron {
+  display: inline-block;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.15s ease;
+  opacity: 0.5;
+}
+
+.truvala-risk-module-btn:hover .truvala-risk-chevron {
+  transform: translateX(4px);
+  opacity: 1;
+}
+
+/* ─── Chat ───────────────────────────────────────────────────────────────────── */
+
+.truvala-chat-section {
+  margin-top: 4px;
+  padding-bottom: 8px;
+}
+
+.truvala-chat-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 0 14px;
+}
+
+.truvala-chat-divider::before,
+.truvala-chat-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(226, 232, 240, 0.9);
+}
+
+.truvala-chat-divider-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #334155;
+  white-space: nowrap;
+}
+
+.truvala-chat-log {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Messages */
+
+.truvala-chat-msg {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.truvala-msg-user {
+  flex-direction: row-reverse;
+}
+
+.truvala-msg-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #1e3a8a;
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-bottom: 2px;
+}
+
+.truvala-msg-bubble {
+  max-width: 82%;
+  padding: 10px 13px;
+  font-size: 13px;
+  line-height: 1.55;
+  word-break: break-word;
+}
+
+.truvala-msg-assistant .truvala-msg-bubble {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 4px 14px 14px 14px;
+  color: #334155;
+}
+
+.truvala-msg-user .truvala-msg-bubble {
+  background: #1e3a8a;
+  color: white;
+  border-radius: 14px 14px 4px 14px;
+}
+
+/* Typing indicator */
+
+.truvala-typing-bubble {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 13px 16px !important;
+}
+
+.truvala-typing-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #94a3b8;
+  flex-shrink: 0;
+  animation: truvala-typing-bounce 1.2s ease infinite;
+}
+
+.truvala-typing-dot:nth-child(2) { animation-delay: 0.15s; }
+.truvala-typing-dot:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes truvala-typing-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.35; }
+  30%           { transform: translateY(-5px); opacity: 1; }
+}
+
+/* Suggested question chips */
+
+.truvala-chat-suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.truvala-suggestion-chip {
+  text-align: left;
+  padding: 9px 13px;
+  background: rgba(239, 246, 255, 0.85);
+  border: 1.5px solid #bfdbfe;
+  border-radius: 10px;
+  font-size: 12.5px;
+  color: #1e3a8a;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  line-height: 1.4;
+  transition: background 0.13s ease, border-color 0.13s ease;
+}
+
+.truvala-suggestion-chip:hover {
+  background: rgba(219, 234, 254, 0.95);
+  border-color: #93c5fd;
+}
+
+/* Sticky input */
+
+.truvala-chat-input-area {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-top: 1px solid rgba(226, 232, 240, 0.9);
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  flex-shrink: 0;
+}
+
+.truvala-chat-input {
+  flex: 1;
+  padding: 9px 14px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 20px;
+  font-size: 13px;
+  color: #334155;
+  background: white;
+  outline: none;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  transition: border-color 0.15s ease;
+}
+
+.truvala-chat-input:focus { border-color: #1e3a8a; }
+.truvala-chat-input::placeholder { color: #94a3b8; }
+.truvala-chat-input:disabled { opacity: 0.5; }
+
+.truvala-chat-send {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: none;
+  background: #1e3a8a;
+  color: white;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.13s ease, transform 0.1s ease;
+}
+
+.truvala-chat-send:hover   { background: #2d4fa3; }
+.truvala-chat-send:active  { transform: scale(0.93); }
+.truvala-chat-send:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }

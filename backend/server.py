@@ -4,7 +4,8 @@ Truvala analysis backend.
 Flow per request:
   1. Extract structured listing from raw browser DOM scrape  (gpt-4.1-mini)
   2. Deterministic buyer fit score                           (buyer_score module)
-  3. AI report narrative                                     (gpt-4.1-mini)
+  3. Deterministic risk analysis                             (risk modules)
+  4. AI report narrative — grounded in #2 and #3            (gpt-4.1-mini)
 """
 
 import json
@@ -18,13 +19,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from openai import OpenAI
 from pydantic import BaseModel
 
-# Load OPENAI_API_KEY from ~/.env (same as rentcast_test.py)
 load_dotenv(Path.home() / ".env")
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "buyer_score_project"))
 from buyer_score import calculate_buyer_fit_score
 from cost_calculator import calculate_monthly_costs
 from partners.ecosolar import get_ecosolar_estimate
+from risk import analyze_risk
 
 app = FastAPI()
 
@@ -40,7 +41,6 @@ client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 MODEL = "gpt-4.1-mini"
 
 # ─── Extraction ───────────────────────────────────────────────────────────────
-# Adapted from truvala-agent-test/extract_listing.py
 
 EXTRACTION_SYSTEM = """You extract structured real estate listing facts from browser DOM text.
 
@@ -53,7 +53,8 @@ Rules:
 - If HOA says "No HOA Fee", set hoa_fee_monthly to 0
 - Keep land_lease_monthly separate from hoa_fee_monthly
 - Preserve manufactured/mobile-home-in-park property types exactly
-- floors: extract as "single_story", "two_story", "three_plus_story", or null"""
+- floors: extract as "single_story", "two_story", "three_plus_story", or null
+- description: include the full listing description and agent remarks"""
 
 LISTING_SCHEMA = {
     "address": None, "city": None, "state": None, "zip": None,
@@ -66,25 +67,35 @@ LISTING_SCHEMA = {
 
 # ─── Report generation ────────────────────────────────────────────────────────
 
-REPORT_SYSTEM = """You are a homebuying analyst. Given a structured listing, buyer preferences,
-and a deterministic fit score, produce a plain-English buyer report.
+REPORT_SYSTEM = """You are a homebuying analyst writing a buyer report from structured analysis data.
+
+You are given:
+- A structured listing
+- The buyer's preferences
+- A deterministic buyer fit score with per-field explanations
+- A structured risk report produced by rule-based analysis modules (not your opinion)
+
+Your job is to write the narrative fields only. The risk analysis has already been done.
 
 Return ONLY strict JSON — no markdown:
 {
-  "score": <buyer_fit_score integer>,
+  "score": <copy buyer_fit_score exactly — do not change it>,
   "risk": "<Low | Medium | Medium-High | High>",
-  "capex_estimate": "<e.g. '$5k–$15k near-term' or 'Low — move-in ready'>",
-  "summary": "<2–3 sentence summary written directly to the buyer>",
-  "warnings": ["<short specific warning>", ...],
-  "positives": ["<short specific positive>", ...],
-  "questions": ["<question to ask before touring>", ...]
+  "capex_estimate": "<derive from component_lifespan signals and checklist cost estimates>",
+  "summary": "<3–4 sentences written directly to the buyer synthesizing all three sources: (1) one sentence on how well the listing fits their preferences, referencing the buyer_fit_score and the strongest field_score result; (2) one sentence on the top risk signal from the risk_report computed_risk_signals; (3) one sentence on a key listing fact (price, size, location, or condition)>",
+  "warnings": ["<derived from High-severity computed_risk_signals in the risk_report>", ...],
+  "positives": ["<what genuinely works for this buyer based on field_scores and listing facts>", ...],
+  "questions": ["<the most important buyer_questions from the risk_report verification checklist>", ...]
 }
 
 Rules:
-- 3–4 items per list, each under 12 words
-- Risk reflects condition, land lease, financing complexity, and market signals
-- Be specific to this listing — avoid generic boilerplate
-- Do not invent facts not in the listing data"""
+- 3–4 items per list, each warning/positive/question under 14 words
+- Summary must draw from all three sources: buyer fit score, risk report, and listing facts — do not write a summary that could apply to any listing
+- Risk level must reflect the severity of computed_risk_signals, not your general impression
+- Warnings must be traceable to a specific computed_risk_signal in the risk_report — do not invent
+- Questions should prioritize High-priority items from the verification checklist
+- Do not mention or invent risks not present in the risk_report
+- Positives should reference specific field_score wins, not generic praise"""
 
 
 class AnalyzeRequest(BaseModel):
@@ -104,22 +115,108 @@ async def analyze(req: AnalyzeRequest):
     except Exception as e:
         raise HTTPException(status_code=422, detail=f"Scoring failed: {e}")
 
+    # Risk analysis runs before the model call so findings ground the narrative
     try:
-        report = generate_report(structured, req.preferences, score_result)
+        risk_report = analyze_risk(structured)
+    except Exception as e:
+        risk_report = {"error": str(e)}
+
+    try:
+        report = generate_report(structured, req.preferences, score_result, risk_report)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Report generation failed: {e}")
 
+    report["risk_report"] = risk_report
+    report["listing"]     = structured  # passed to /chat for full context
+
     # Monthly cost breakdown + EcoSolar (non-fatal if they fail)
-    report['monthly_costs'] = calculate_monthly_costs(structured)
-    if report['monthly_costs']:
-        zip_code = str(structured.get('zip') or '')
-        sqft     = structured.get('sqft')
-        utility  = report['monthly_costs']['utilities']
-        report['ecosolar'] = get_ecosolar_estimate(zip_code, sqft, utility)
+    report["monthly_costs"] = calculate_monthly_costs(structured)
+    if report["monthly_costs"]:
+        zip_code = str(structured.get("zip") or "")
+        sqft     = structured.get("sqft")
+        utility  = report["monthly_costs"]["utilities"]
+        report["ecosolar"] = get_ecosolar_estimate(zip_code, sqft, utility)
     else:
-        report['ecosolar'] = None
+        report["ecosolar"] = None
 
     return report
+
+
+CHAT_SYSTEM = """\
+You are Truvala, a friendly AI homebuying assistant embedded in a listing analysis tool. \
+You have already completed a full risk and buyer-fit analysis on a specific listing. \
+The buyer is now asking you follow-up questions in a chat.
+
+Listing facts:
+{listing_json}
+
+Buyer fit score: {score}/100
+Capex estimate: {capex}
+Buyer preferences: {prefs_json}
+
+Risk analysis findings:
+{risk_json}
+
+Guidelines:
+- Be conversational, warm, and direct — you are on the buyer's side
+- Ground every answer in the listing and risk data above — never invent facts
+- Keep responses concise: 2–4 sentences for most questions
+- If something is not in the data, say so clearly rather than speculating
+- When useful, point to specific questions the buyer should ask the seller or inspector\
+"""
+
+CHAT_INIT_PROMPT = """\
+This is the opening of the chat. The buyer just opened the full risk report.
+
+Write a brief, friendly opening message (1–2 sentences) that references a specific key risk \
+you found in THIS listing — not a generic welcome.
+Then provide exactly 3 suggested follow-up questions that are specific to this listing's \
+actual risk profile. Make them concrete and actionable, not generic.
+
+Return strict JSON only, no markdown:
+{"message": "...", "suggested_questions": ["...", "...", "..."]}\
+"""
+
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class ChatRequest(BaseModel):
+    messages: list[ChatMessage]
+    risk_report: dict
+    listing: dict
+    preferences: dict
+    score: int = 0
+    capex_estimate: str = ""
+
+
+@app.post("/chat")
+async def chat(req: ChatRequest):
+    system = CHAT_SYSTEM.format(
+        listing_json=json.dumps(req.listing, ensure_ascii=False),
+        score=req.score,
+        capex=req.capex_estimate,
+        prefs_json=json.dumps(req.preferences, ensure_ascii=False),
+        risk_json=json.dumps(req.risk_report, ensure_ascii=False),
+    )
+
+    is_init = len(req.messages) == 0
+
+    input_messages = [{"role": "system", "content": system}]
+    if is_init:
+        input_messages.append({"role": "user", "content": CHAT_INIT_PROMPT})
+    else:
+        input_messages.extend(
+            [{"role": m.role, "content": m.content} for m in req.messages]
+        )
+
+    response = client.responses.create(model=MODEL, input=input_messages)
+
+    if is_init:
+        return parse_json(response.output_text)
+    return {"message": response.output_text.strip()}
 
 
 def extract_listing(raw_scrape: dict) -> dict:
@@ -146,13 +243,16 @@ def extract_listing(raw_scrape: dict) -> dict:
     return parse_json(response.output_text)
 
 
-def generate_report(listing: dict, preferences: dict, score_result: dict) -> dict:
+def generate_report(
+    listing: dict, preferences: dict, score_result: dict, risk_report: dict
+) -> dict:
     payload = {
         "listing": listing,
         "preferences": preferences,
         "buyer_fit_score": score_result["buyer_fit_score"],
         "field_scores": score_result["field_scores"],
         "skipped_fields": score_result["skipped_fields"],
+        "risk_report": risk_report,
     }
     response = client.responses.create(
         model=MODEL,
@@ -162,6 +262,9 @@ def generate_report(listing: dict, preferences: dict, score_result: dict) -> dic
         ],
     )
     report = parse_json(response.output_text)
+
+    # Always use the deterministic score — never the model's
+    report["score"] = score_result["buyer_fit_score"]
 
     report["field_scores"] = {
         key: {
