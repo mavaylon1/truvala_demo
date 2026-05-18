@@ -2,3 +2,4 @@ node_modules
 dist
 .env
 .DS_Store
+Miniconda3-latest-Linux-x86_64.sh
