@@ -21,6 +21,12 @@ try:
 except ImportError:
     _HAS_WDM = False
 
+try:
+    import undetected_chromedriver as uc
+    _HAS_UC = True
+except ImportError:
+    _HAS_UC = False
+
 
 log = logging.getLogger(__name__)
 
@@ -61,8 +67,52 @@ class Listing:
         return asdict(self)
 
 
-def build_driver(headless=True, proxy=None, user_agent=None, window_size="1366,900"):
-    """Construct a stealth-ish Chrome WebDriver."""
+
+def _build_uc_driver(headless=True, proxy=None, user_agent=None,
+                     window_size="1366,900"):
+    """Build an undetected_chromedriver instance.
+
+    UC's API differs slightly from vanilla Selenium - it has its own
+    ChromeOptions class and handles headless mode via a constructor arg.
+    """
+    opts = uc.ChromeOptions()
+    if user_agent:
+        opts.add_argument("--user-agent=" + user_agent)
+    else:
+        opts.add_argument("--user-agent=" + random.choice(USER_AGENTS))
+    opts.add_argument("--window-size=" + window_size)
+    opts.add_argument("--no-sandbox")
+    opts.add_argument("--disable-dev-shm-usage")
+    opts.add_argument("--disable-gpu")
+    opts.add_argument("--lang=en-US,en;q=0.9")
+    if proxy:
+        opts.add_argument("--proxy-server=" + proxy)
+
+    # UC manages its own headless flag; passing it through Options arguments
+    # leaves obvious tells. Use the constructor parameter instead.
+    return uc.Chrome(options=opts, headless=headless, use_subprocess=True)
+
+
+def build_driver(headless=True, proxy=None, user_agent=None, window_size="1366,900", stealth=False):
+    """Construct a stealth-ish Chrome WebDriver.
+
+    stealth=True uses undetected_chromedriver (UC) instead of vanilla
+    selenium. UC patches the Chrome binary to scrub the most obvious
+    automation tells (CDP cookies, cdc_ properties, navigator.webdriver
+    leaks that survive JS-level patches). Required to get past
+    PerimeterX-protected sites (Zillow, Trulia). Install with
+    `pip install undetected-chromedriver`.
+    """
+    if stealth:
+        if not _HAS_UC:
+            log.warning("stealth=True requested but undetected_chromedriver "
+                        "is not installed; falling back to vanilla Selenium "
+                        "(expect bot-detection blocks). Install with "
+                        "`pip install undetected-chromedriver`.")
+        else:
+            return _build_uc_driver(headless=headless, proxy=proxy,
+                                    user_agent=user_agent,
+                                    window_size=window_size)
     opts = ChromeOptions()
     if headless:
         opts.add_argument("--headless=new")
@@ -81,7 +131,14 @@ def build_driver(headless=True, proxy=None, user_agent=None, window_size="1366,9
     if proxy:
         opts.add_argument("--proxy-server=" + proxy)
 
-    if _HAS_WDM:
+    # Selenium 4.11+ ships with selenium-manager, which auto-downloads
+    # a ChromeDriver matching the *installed* Chrome version. That is
+    # strictly better than webdriver-manager, which falls back to an
+    # ancient hardcoded version (114.0.5735.90) when it cannot detect
+    # a Chrome install - a common failure mode in fresh WSL setups.
+    # Set USE_WEBDRIVER_MANAGER=1 to opt back into webdriver-manager.
+    import os
+    if _HAS_WDM and os.environ.get("USE_WEBDRIVER_MANAGER") == "1":
         driver = webdriver.Chrome(
             service=ChromeService(ChromeDriverManager().install()),
             options=opts,
@@ -166,9 +223,10 @@ class BaseScraper:
     SOURCE = "base"
 
     def __init__(self, headless=True, proxy=None, page_load_timeout=45,
-                 wait_timeout=20, driver=None):
+                 wait_timeout=20, driver=None, stealth=False):
         self.headless = headless
         self.proxy = proxy
+        self.stealth = stealth
         self.page_load_timeout = page_load_timeout
         self.wait_timeout = wait_timeout
         self._driver = driver
@@ -184,7 +242,11 @@ class BaseScraper:
     @property
     def driver(self):
         if self._driver is None:
-            self._driver = build_driver(headless=self.headless, proxy=self.proxy)
+            self._driver = build_driver(
+                headless=self.headless,
+                proxy=self.proxy,
+                stealth=getattr(self, 'stealth', False),
+            )
             self._driver.set_page_load_timeout(self.page_load_timeout)
         return self._driver
 

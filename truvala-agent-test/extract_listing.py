@@ -282,7 +282,3 @@ def main(argv=None) -> int:
 
     print("Wrote " + str(default_out))
     return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())
