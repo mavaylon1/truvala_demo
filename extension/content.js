@@ -25,8 +25,11 @@
 
   // ─── Chat state ───────────────────────────────────────────────────────────────
 
-  let chatMessages    = [];   // [{role, content}] full history sent to backend
-  let riskDrawerBuilt = false; // prevents rebuilding DOM on re-open
+  let chatMessages       = [];   // [{role, content}] full history sent to backend
+  let riskDrawerBuilt    = false; // prevents rebuilding DOM on re-open
+  let detailChatMessages = [];   // per-factor detail panel chat history
+  let activeDetailKey    = null; // which module is currently open in detail panel
+  let activeDetailBullet = null; // which bullet text triggered the current detail session
 
   // ─── Integration points ──────────────────────────────────────────────────────
 
@@ -113,12 +116,17 @@
     chatMessages    = [];
     riskDrawerBuilt = false;
 
-    // Keep mini bubble up to date
+    // Keep mini bubble and side-tab score up to date
     const miniScore   = document.getElementById('truvala-mini-score');
     const miniAddress = document.getElementById('truvala-mini-address');
     miniScore.textContent  = report.score;
     miniScore.style.color  = scoreColor(report.score);
     miniAddress.textContent = address;
+    const sidetabScore = document.getElementById('truvala-sidetab-score');
+    if (sidetabScore) {
+      sidetabScore.textContent = report.score;
+      sidetabScore.style.color = scoreColor(report.score);
+    }
 
     // Populate panel
     document.getElementById('truvala-address').textContent = address;
@@ -548,158 +556,119 @@
     return { color: '#f59e0b', label: null, text: signal };
   }
 
-  function buildRiskModuleHTML(module) {
+  function truncateBullet(text) {
+    const words = text.split(/\s+/);
+    return words.length <= 5 ? text : words.slice(0, 5).join(' ') + '…';
+  }
+
+  function signalRankScore(signal) {
+    const t = signal.toLowerCase();
+    let score = 0;
+    if (signal.startsWith('[High]'))   score += 300;
+    else if (signal.startsWith('[Medium]')) score += 150;
+    else if (signal.startsWith('[Low]'))    score += 50;
+    // Health hazard bonus
+    if (/lead paint|asbestos|mold|carbon monoxide|radon|legionella/.test(t)) score += 100;
+    if (/fire risk|electrical fire|flood zone|knob.and.tube/.test(t)) score += 60;
+    // Cost bonus
+    if (/roof|foundation|sewer|rewir/.test(t)) score += 50;
+    if (/hvac|electrical panel|replac/.test(t)) score += 40;
+    if (/plumbing|water heater/.test(t)) score += 20;
+    return score;
+  }
+
+  function getTopBullets(module) {
+    const result = [];
+    const seen = new Set();
+    const add = (text, color) => {
+      const key = text.toLowerCase().slice(0, 50);
+      if (!seen.has(key)) { seen.add(key); result.push({ text, color }); }
+    };
+    // Sort signals by combined cost+hazard score before taking top N
+    const ranked = (module.computed_risk_signals || [])
+      .map(s => ({ s, score: signalRankScore(s) }))
+      .sort((a, b) => b.score - a.score)
+      .map(x => x.s);
+    for (const s of ranked) {
+      if (result.length >= 5) break;
+      const { color, text } = signalSeverity(s);
+      add(text, color);
+    }
+    for (const c of (module.inferred_concerns || [])) {
+      if (result.length >= 5) break;
+      if (result.length < 3) add(c, '#94a3b8');
+    }
+    for (const f of (module.observed_facts || [])) {
+      if (result.length >= 5) break;
+      if (result.length < 3) add(f, '#64748b');
+    }
+    return result;
+  }
+
+  function buildCompactModuleHTML(module, key) {
     if (!module) return '';
     const signals = module.computed_risk_signals || [];
-    const facts   = module.observed_facts || [];
-    const inferred = module.inferred_concerns || [];
-    const questions = module.buyer_questions || [];
-
+    const bullets = getTopBullets(module);
     const badge = signals.length
       ? `<span class="truvala-module-badge truvala-badge-warn">${signals.length} signal${signals.length !== 1 ? 's' : ''}</span>`
       : `<span class="truvala-module-badge truvala-badge-clear">✓ Clear</span>`;
-
-    const signalsHTML = signals.map(s => {
-      const { color, text } = signalSeverity(s);
-      return `<div class="truvala-risk-item truvala-signal-item">
-        <span class="truvala-signal-dot" style="background:${color}"></span>
-        <span>${text}</span>
-      </div>`;
-    }).join('');
-
-    const factsHTML = facts.map(f =>
-      `<div class="truvala-risk-item truvala-fact-item">
-        <span class="truvala-fact-dot"></span><span>${f}</span>
-      </div>`
-    ).join('');
-
-    const inferredHTML = inferred.map(c =>
-      `<div class="truvala-risk-item truvala-inferred-item">${c}</div>`
-    ).join('');
-
-    const questionsHTML = questions.map(q =>
-      `<div class="truvala-risk-item truvala-question-item">
-        <span class="truvala-question-arrow">→</span><span>${q}</span>
-      </div>`
-    ).join('');
-
+    const bulletsHTML = bullets.length
+      ? bullets.map(b => {
+          const safe = b.text.replace(/"/g, '&quot;');
+          return `
+          <div class="truvala-compact-bullet" data-module-key="${key}" data-bullet-text="${safe}">
+            <span class="truvala-bullet-dot" style="background:${b.color}"></span>
+            <span class="truvala-bullet-text">${truncateBullet(b.text)}</span>
+          </div>`;
+        }).join('')
+      : `<div class="truvala-compact-bullet"><span style="color:#94a3b8;font-style:italic">No signals detected</span></div>`;
     return `
-      <div class="truvala-risk-module">
-        <button class="truvala-risk-module-btn">
+      <div class="truvala-risk-module" data-module-key="${key}">
+        <button class="truvala-risk-module-btn" data-module-key="${key}">
           <span class="truvala-risk-module-title">${module.section}</span>
           <div class="truvala-risk-module-right">${badge}<span class="truvala-risk-chevron">›</span></div>
         </button>
         <div class="truvala-risk-module-body" style="display:none">
-          ${facts.length ? `
-            <div class="truvala-risk-subsection">
-              <div class="truvala-risk-sub-label">Observed Facts</div>
-              ${factsHTML}
-            </div>` : ''}
-          ${signals.length ? `
-            <div class="truvala-risk-subsection truvala-subsection-signals">
-              <div class="truvala-risk-sub-label">Computed Risk Signals</div>
-              ${signalsHTML}
-            </div>` : ''}
-          ${inferred.length ? `
-            <div class="truvala-risk-subsection truvala-subsection-inferred">
-              <div class="truvala-risk-sub-label">
-                Inferred <span class="truvala-inferred-tag">not confirmed</span>
-              </div>
-              ${inferredHTML}
-            </div>` : ''}
-          ${questions.length ? `
-            <div class="truvala-risk-subsection truvala-subsection-questions">
-              <div class="truvala-risk-sub-label">Ask Before You Tour</div>
-              ${questionsHTML}
-            </div>` : ''}
+          ${bulletsHTML}
         </div>
       </div>`;
   }
 
-  function buildChecklistHTML(checklist) {
-    if (!checklist?.checklist?.length) return '';
-    const items  = checklist.checklist;
+  function buildCompactChecklistHTML(checklist) {
+    if (!checklist) return '';
+    const items  = checklist.checklist || [];
     const high   = items.filter(i => i.priority === 'High');
     const medium = items.filter(i => i.priority === 'Medium');
-
-    const buildItem = (item) => `
-      <div class="truvala-checklist-item">
-        <div class="truvala-checklist-top">
-          <span class="truvala-checklist-priority priority-${item.priority.toLowerCase()}">${item.priority}</span>
-          <span class="truvala-checklist-name">${item.item}</span>
-        </div>
-        <div class="truvala-checklist-why">${item.why_it_matters}</div>
-        <div class="truvala-checklist-meta">
-          <span class="truvala-checklist-cost">est. ${item.rough_estimate}</span>
-          <span class="truvala-checklist-ask">Ask: ${item.ask}</span>
-        </div>
-      </div>`;
-
+    const bullets = [];
+    for (const i of high)   { bullets.push({ text: i.item, color: '#ef4444' }); if (bullets.length >= 5) break; }
+    if (bullets.length < 3) {
+      for (const i of medium) { bullets.push({ text: i.item, color: '#f59e0b' }); if (bullets.length >= 5) break; }
+    }
+    const badge = high.length
+      ? `<span class="truvala-module-badge truvala-badge-warn">${high.length} high priority</span>`
+      : `<span class="truvala-module-badge truvala-badge-clear">✓ No gaps</span>`;
+    const bulletsHTML = bullets.length
+      ? bullets.map(b => {
+          const safe = b.text.replace(/"/g, '&quot;');
+          return `
+          <div class="truvala-compact-bullet" data-module-key="verify" data-bullet-text="${safe}">
+            <span class="truvala-bullet-dot" style="background:${b.color}"></span>
+            <span class="truvala-bullet-text">${truncateBullet(b.text)}</span>
+          </div>`;
+        }).join('')
+      : `<div class="truvala-compact-bullet"><span style="color:#94a3b8;font-style:italic">No priority gaps found</span></div>`;
     return `
-      <div class="truvala-risk-module">
-        <button class="truvala-risk-module-btn">
+      <div class="truvala-risk-module" data-module-key="verify">
+        <button class="truvala-risk-module-btn" data-module-key="verify">
           <span class="truvala-risk-module-title">${checklist.section}</span>
-          <div class="truvala-risk-module-right">
-            <span class="truvala-module-badge truvala-badge-warn">${items.length} items</span>
-            <span class="truvala-risk-chevron">›</span>
-          </div>
+          <div class="truvala-risk-module-right">${badge}<span class="truvala-risk-chevron">›</span></div>
         </button>
         <div class="truvala-risk-module-body" style="display:none">
-          ${high.length ? `
-            <div class="truvala-checklist-group-label">High Priority</div>
-            ${high.map(buildItem).join('')}` : ''}
-          ${medium.length ? `
-            <div class="truvala-checklist-group-label" style="margin-top:10px">Medium Priority</div>
-            ${medium.map(buildItem).join('')}` : ''}
+          ${bulletsHTML}
         </div>
       </div>`;
   }
 
-  function buildInterpretedRiskHTML(warnings, questions) {
-    const w = (warnings || []);
-    const q = (questions || []);
-    if (!w.length && !q.length) return '';
-    return `
-      <div class="truvala-interpreted-risk">
-        <div class="truvala-interpreted-header">
-          <span class="truvala-interpreted-label">Interpreted Risk</span>
-          <span class="truvala-ai-tag">AI</span>
-        </div>
-        <p class="truvala-interpreted-note">Model observations derived from the above analysis. Not deterministic.</p>
-        ${w.map(item => `<div class="truvala-interpreted-item">• ${item}</div>`).join('')}
-        ${q.length ? `
-          <div class="truvala-interpreted-subheader">Additional questions</div>
-          ${q.map(item => `<div class="truvala-interpreted-item">→ ${item}</div>`).join('')}` : ''}
-      </div>`;
-  }
-
-  function buildRiskAnalysisHTML(report) {
-    const rr = report.risk_report;
-    const totalSignals = [rr?.age_era, rr?.component_lifespan, rr?.listing_language]
-      .flatMap(m => m?.computed_risk_signals || []).length;
-    const highItems = rr?.verification_checklist?.checklist?.filter(i => i.priority === 'High').length || 0;
-
-    return `
-      <div class="truvala-card truvala-risk-card">
-        <div class="truvala-risk-section-header">
-          <div class="truvala-card-title" style="margin:0">
-            <span class="truvala-card-icon" style="background:#fee2e2;color:#991b1b">⚠</span>
-            Risk Analysis
-          </div>
-          <div class="truvala-risk-header-stats">
-            ${totalSignals ? `<span class="truvala-risk-stat">${totalSignals} signals</span>` : ''}
-            ${highItems ? `<span class="truvala-risk-stat truvala-risk-stat-high">${highItems} high priority</span>` : ''}
-          </div>
-        </div>
-        ${rr ? `
-          ${buildRiskModuleHTML(rr.age_era)}
-          ${buildRiskModuleHTML(rr.component_lifespan)}
-          ${buildRiskModuleHTML(rr.listing_language)}
-          ${buildChecklistHTML(rr.verification_checklist)}
-          ${buildInterpretedRiskHTML(report.warnings, report.questions)}
-        ` : `<p style="font-size:13px;color:#94a3b8;padding:8px 0">Risk analysis not available for this listing.</p>`}
-      </div>`;
-  }
 
   function buildReportHTML(report) {
     const fieldChips = Object.entries(report.field_scores).map(([key, f]) => {
@@ -930,26 +899,29 @@
     const rr = report.risk_report;
     if (!rr) return '<p class="truvala-drawer-empty">Risk data not available for this listing.</p>';
     return `
-      ${buildRiskModuleHTML(rr.age_era)}
-      ${buildRiskModuleHTML(rr.component_lifespan)}
-      ${buildRiskModuleHTML(rr.listing_language)}
-      ${buildChecklistHTML(rr.verification_checklist)}
-      ${buildInterpretedRiskHTML(report.warnings, report.questions)}`;
+      ${buildCompactModuleHTML(rr.age_era, 'age_era')}
+      ${buildCompactModuleHTML(rr.component_lifespan, 'component_lifespan')}
+      ${buildCompactModuleHTML(rr.listing_language, 'listing_language')}
+      ${buildCompactChecklistHTML(rr.verification_checklist)}
+      ${buildCompactModuleHTML(rr.builder_info, 'builder_info')}
+      ${buildCompactModuleHTML(rr.maintenance_history, 'maintenance_history')}`;
   }
 
   function openRiskDrawer() {
     if (!currentReport) return;
     if (!riskDrawerBuilt) {
       document.getElementById('truvala-drawer-modules').innerHTML = buildFullRiskHTML(currentReport);
-      document.getElementById('truvala-drawer-chat').innerHTML    = buildChatSectionHTML();
       riskDrawerBuilt = true;
-      initChat();
     }
     document.getElementById('truvala-risk-drawer').classList.add('truvala-visible');
   }
 
   function closeRiskDrawer() {
     document.getElementById('truvala-risk-drawer').classList.remove('truvala-visible');
+    // Also clean up sidetab state if detail panel was open
+    document.getElementById('truvala-panel').classList.remove('truvala-sidetab');
+    document.getElementById('truvala-risk-drawer').classList.remove('truvala-drawer-shifted');
+    document.getElementById('truvala-risk-detail-panel').classList.remove('truvala-detail-shifted');
   }
 
   // ─── Chat ─────────────────────────────────────────────────────────────────────
@@ -1095,6 +1067,272 @@
     }
   }
 
+  // ─── Risk detail panel (per-factor Ask Truvala) ──────────────────────────────
+
+  const MODULE_LABELS = {
+    age_era:             'Age & Era Risk',
+    component_lifespan:  'Component Lifespan Risk',
+    listing_language:    'Listing Language Flags',
+    verify:              'Missing Info & Verification',
+    builder_info:        'Builder & Developer',
+    maintenance_history: 'Maintenance & Permit History',
+  };
+
+  const MODULE_SOURCES = {
+    age_era: [
+      'epa.gov/lead/renovation-repair-painting-program',
+      'hud.gov/program_offices/healthy_homes/lead',
+      'epa.gov/asbestos/asbestos-your-home',
+      'nachi.org/historic-home-inspection.htm',
+    ],
+    component_lifespan: [
+      'nahb.org/how-long-do-products-last-chart',
+      'energystar.gov/products/central_air_conditioner',
+      'nrca.net/rf/service/warranty-basics',
+      'nachi.org/component-lifespans.htm',
+    ],
+    listing_language: [
+      'realtor.com/advice/buy/red-flag-listing-phrases',
+      'nolo.com/legal-encyclopedia/warning-signs-home-purchase',
+      'consumerfinance.gov/ask-cfpb/home-buying',
+      'hud.gov/buyer/process',
+    ],
+    verify: [
+      'consumerfinance.gov/owning-a-home/closing-disclosure',
+      'hud.gov/buyer/process/inspection-checklist',
+      'nachi.org/inspection-agreement.htm',
+      'nahb.org/advocacy/new-home-buyer-checklist',
+    ],
+    builder_info: [
+      'bbb.org/search',
+      'buildzoom.com/contractor-license-lookup',
+      'consumeraffairs.com/homebuilders',
+      'houzz.com/professionals/general-contractors',
+      'newhomesource.com/builder-reviews',
+    ],
+    maintenance_history: [
+      'permitdata.org',
+      'publicrecords.com/property-records',
+      'clrsearch.com/Property_Records',
+      'nachi.org/home-inspection-checklist.htm',
+      'homeinspector.org/homebuyers',
+    ],
+  };
+
+  function scrollDetailChatToBottom() {
+    const log = document.getElementById('truvala-detail-chat-log');
+    if (log) log.scrollTop = log.scrollHeight;
+  }
+
+  function renderWithLinks(raw) {
+    const linkRe = /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g;
+    let out = '';
+    let last = 0;
+    let m;
+    while ((m = linkRe.exec(raw)) !== null) {
+      out += escapeHTML(raw.slice(last, m.index));
+      out += `<a href="${escapeHTML(m[2])}" target="_blank" rel="noopener noreferrer" class="truvala-source-anchor">${escapeHTML(m[1])}</a>`;
+      last = m.index + m[0].length;
+    }
+    out += escapeHTML(raw.slice(last));
+    return out;
+  }
+
+  function renderDetailResponse(text) {
+    let html = '';
+    for (const line of text.split('\n')) {
+      const t = line.trim();
+      if (!t) { html += '<div class="truvala-detail-spacer"></div>'; continue; }
+      if (t.startsWith('**') && t.endsWith('**')) {
+        html += `<div class="truvala-detail-section-hdr">${escapeHTML(t.slice(2, -2))}</div>`;
+      } else if (/^[•\-]\s/.test(t)) {
+        html += `<div class="truvala-detail-resp-bullet"><span class="truvala-resp-bullet-dot"></span><span>${renderWithLinks(t.slice(2).trim())}</span></div>`;
+      } else if (t.startsWith('→')) {
+        html += `<div class="truvala-detail-resp-question"><span class="truvala-resp-arrow">→</span><span>${renderWithLinks(t.slice(1).trim())}</span></div>`;
+      } else if (/^\d+\.\s/.test(t)) {
+        html += `<div class="truvala-detail-resp-bullet"><span class="truvala-resp-bullet-dot"></span><span>${renderWithLinks(t.replace(/^\d+\.\s/, ''))}</span></div>`;
+      } else {
+        html += `<div class="truvala-detail-resp-text">${renderWithLinks(t)}</div>`;
+      }
+    }
+    return html;
+  }
+
+  function appendDetailMessage(role, content) {
+    const log = document.getElementById('truvala-detail-chat-log');
+    if (!log) return;
+    const div = document.createElement('div');
+    div.className = `truvala-chat-msg truvala-msg-${role}`;
+    div.innerHTML = role === 'user'
+      ? `<div class="truvala-msg-bubble">${escapeHTML(content)}</div>`
+      : `<div class="truvala-msg-avatar">T</div><div class="truvala-detail-response">${renderDetailResponse(content)}</div>`;
+    log.appendChild(div);
+    scrollDetailChatToBottom();
+  }
+
+  function showDetailTyping() {
+    const log = document.getElementById('truvala-detail-chat-log');
+    if (!log || document.getElementById('truvala-detail-typing')) return;
+    const div = document.createElement('div');
+    div.id = 'truvala-detail-typing';
+    div.className = 'truvala-chat-msg truvala-msg-assistant';
+    div.innerHTML = `
+      <div class="truvala-msg-avatar">T</div>
+      <div class="truvala-msg-bubble truvala-typing-bubble">
+        <span class="truvala-typing-dot"></span>
+        <span class="truvala-typing-dot"></span>
+        <span class="truvala-typing-dot"></span>
+      </div>`;
+    log.appendChild(div);
+    scrollDetailChatToBottom();
+  }
+
+  function removeDetailTyping() {
+    document.getElementById('truvala-detail-typing')?.remove();
+  }
+
+  async function showDetailResearchSources(moduleKey) {
+    const sources = MODULE_SOURCES[moduleKey] || MODULE_SOURCES.verify;
+    const log = document.getElementById('truvala-detail-chat-log');
+    if (!log) return;
+    const container = document.createElement('div');
+    container.id = 'truvala-detail-sources';
+    container.className = 'truvala-sources-container';
+    container.innerHTML = `
+      <div class="truvala-sources-header">
+        <span class="truvala-sources-spinner"></span>
+        Researching sources…
+      </div>
+      <div class="truvala-sources-list" id="truvala-sources-list"></div>`;
+    log.appendChild(container);
+    scrollDetailChatToBottom();
+    const list = document.getElementById('truvala-sources-list');
+    for (const src of sources) {
+      await new Promise(r => setTimeout(r, 430));
+      if (!document.getElementById('truvala-detail-sources')) break;
+      const item = document.createElement('div');
+      item.className = 'truvala-source-item truvala-source-appear';
+      item.innerHTML = `<span class="truvala-source-check">✓</span><span class="truvala-source-link">${escapeHTML(src)}</span>`;
+      list.appendChild(item);
+      scrollDetailChatToBottom();
+    }
+  }
+
+  async function sendDetailChatMessage(content) {
+    const text = content.trim();
+    if (!text || !currentReport) return;
+    const input   = document.getElementById('truvala-detail-chat-input');
+    const sendBtn = document.getElementById('truvala-detail-chat-send');
+    if (input)   input.disabled   = true;
+    if (sendBtn) sendBtn.disabled = true;
+    detailChatMessages.push({ role: 'user', content: text });
+    appendDetailMessage('user', text);
+    if (input) input.value = '';
+    showDetailTyping();
+    try {
+      const res = await fetch(CHAT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages:       detailChatMessages,
+          risk_report:    currentReport.risk_report || {},
+          listing:        currentReport.listing     || {},
+          preferences:    currentPrefs,
+          score:          currentReport.score       || 0,
+          capex_estimate: currentReport.capex_estimate || '',
+        }),
+      });
+      const data = await res.json();
+      removeDetailTyping();
+      detailChatMessages.push({ role: 'assistant', content: data.message });
+      appendDetailMessage('assistant', data.message);
+    } catch {
+      removeDetailTyping();
+      const errMsg = 'Sorry, something went wrong. Please try again.';
+      detailChatMessages.push({ role: 'assistant', content: errMsg });
+      appendDetailMessage('assistant', errMsg);
+    } finally {
+      if (input)   { input.disabled = false; input.focus(); }
+      if (sendBtn) sendBtn.disabled = false;
+    }
+  }
+
+  function closeRiskDetailPanel() {
+    document.getElementById('truvala-risk-detail-panel').classList.remove('truvala-visible');
+    // Restore main panel when detail panel closes
+    document.getElementById('truvala-panel').classList.remove('truvala-sidetab');
+    document.getElementById('truvala-risk-drawer').classList.remove('truvala-drawer-shifted');
+    document.getElementById('truvala-risk-detail-panel').classList.remove('truvala-detail-shifted');
+    activeDetailKey    = null;
+    activeDetailBullet = null;
+  }
+
+  async function openRiskDetailPanel(moduleKey, bulletText) {
+    if (!currentReport) return;
+    const label = MODULE_LABELS[moduleKey] || moduleKey;
+
+    // Already showing the same bullet — just focus input
+    if (activeDetailKey === moduleKey && activeDetailBullet === bulletText &&
+        document.getElementById('truvala-risk-detail-panel').classList.contains('truvala-visible')) {
+      document.getElementById('truvala-detail-chat-input')?.focus();
+      return;
+    }
+
+    activeDetailKey    = moduleKey;
+    activeDetailBullet = bulletText || null;
+    document.getElementById('truvala-detail-title').textContent = label;
+    document.getElementById('truvala-detail-chat-log').innerHTML = '';
+    detailChatMessages = [];
+    document.getElementById('truvala-risk-detail-panel').classList.add('truvala-visible');
+    // Collapse main panel to side tab now that three panes are open
+    document.getElementById('truvala-panel').classList.add('truvala-sidetab');
+    document.getElementById('truvala-risk-drawer').classList.add('truvala-drawer-shifted');
+    document.getElementById('truvala-risk-detail-panel').classList.add('truvala-detail-shifted');
+
+    // Animate source links, then fetch
+    await showDetailResearchSources(moduleKey);
+
+    const sourcesForPrompt = (MODULE_SOURCES[moduleKey] || []).join('\n- ');
+    const bulletContext = bulletText ? `, focusing on: "${bulletText}"` : '';
+    const researchPrompt = `For the "${label}" section${bulletContext}. Reply using ONLY these three sections with exact markdown headers:
+
+**Key Risk Signals**
+• [signal]: 2-3 sentences. Include health hazard severity if any, estimated cost range. End with a markdown link: [site-name](https://full-url).
+
+**Inferred Concerns**
+• [concern]: 2-3 sentences. Note if unconfirmed. Include health implication or rough cost. End with [site-name](https://full-url).
+
+**Questions for Your Realtor**
+→ [one specific, actionable question per line]
+
+Cite from these sources (use the actual URLs):
+- ${sourcesForPrompt}`;
+
+    detailChatMessages = [{ role: 'user', content: researchPrompt }];
+    showDetailTyping();
+    try {
+      const res = await fetch(CHAT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages:       detailChatMessages,
+          risk_report:    currentReport.risk_report || {},
+          listing:        currentReport.listing     || {},
+          preferences:    currentPrefs,
+          score:          currentReport.score       || 0,
+          capex_estimate: currentReport.capex_estimate || '',
+        }),
+      });
+      const data = await res.json();
+      removeDetailTyping();
+      detailChatMessages.push({ role: 'assistant', content: data.message });
+      appendDetailMessage('assistant', data.message);
+    } catch {
+      removeDetailTyping();
+      appendDetailMessage('assistant', `I've reviewed the ${label} for this property. Feel free to ask me anything about it.`);
+    }
+  }
+
   // ─── DOM ──────────────────────────────────────────────────────────────────────
 
   function buildDOM() {
@@ -1132,6 +1370,10 @@
       </div>
 
       <div id="truvala-panel" role="complementary" aria-label="Truvala listing report">
+        <div class="truvala-sidetab-label" id="truvala-sidetab-label" aria-hidden="true">
+          <span class="truvala-sidetab-score" id="truvala-sidetab-score">—</span>
+          <span class="truvala-sidetab-text">Report</span>
+        </div>
         <div class="truvala-panel-header">
           <div class="truvala-panel-branding">
             <div class="truvala-panel-logo">Truvala</div>
@@ -1161,11 +1403,24 @@
           </button>
         </div>
         <div class="truvala-drawer-modules" id="truvala-drawer-modules"></div>
-        <div class="truvala-drawer-chat" id="truvala-drawer-chat"></div>
+      </div>
+
+      <div id="truvala-risk-detail-panel" class="truvala-risk-detail-panel" role="complementary" aria-label="Risk factor detail">
+        <div class="truvala-drawer-header">
+          <div class="truvala-drawer-title" id="truvala-detail-title">Factor Analysis</div>
+          <button class="truvala-panel-close" id="truvala-detail-close" aria-label="Close">${ICON_CLOSE}</button>
+        </div>
+        <div class="truvala-detail-body">
+          <div class="truvala-detail-chat-label">
+            <span class="truvala-detail-label-text">Ask Truvala</span>
+            <span class="truvala-ai-tag">AI</span>
+          </div>
+          <div class="truvala-detail-chat-log" id="truvala-detail-chat-log"></div>
+        </div>
         <div class="truvala-chat-input-area">
-          <input class="truvala-chat-input" id="truvala-chat-input"
-            type="text" placeholder="Ask about this listing…" autocomplete="off" spellcheck="false">
-          <button class="truvala-chat-send" id="truvala-chat-send" aria-label="Send">↑</button>
+          <input class="truvala-chat-input" id="truvala-detail-chat-input"
+            type="text" placeholder="Ask about this risk factor…" autocomplete="off" spellcheck="false">
+          <button class="truvala-chat-send" id="truvala-detail-chat-send" aria-label="Send">↑</button>
         </div>
       </div>
 
@@ -1207,46 +1462,61 @@
       setState(currentReport ? 'minimized' : 'idle');
     });
 
-    // Backdrop click: minimize and close risk drawer
+    // Backdrop click: minimize and close risk drawer + detail panel
     document.getElementById('truvala-backdrop').addEventListener('click', () => {
+      closeRiskDetailPanel();
       closeRiskDrawer();
       setState('minimized');
     });
 
-    // Panel close: minimize and close risk drawer
+    // Panel close: minimize and close risk drawer + detail panel
     document.getElementById('truvala-panel-close').addEventListener('click', () => {
+      closeRiskDetailPanel();
       closeRiskDrawer();
       setState('minimized');
     });
 
-    // Risk drawer close
-    document.getElementById('truvala-risk-drawer-close').addEventListener('click', closeRiskDrawer);
+    // Risk drawer close (also closes detail panel)
+    document.getElementById('truvala-risk-drawer-close').addEventListener('click', () => {
+      closeRiskDetailPanel();
+      closeRiskDrawer();
+    });
 
-    // Risk drawer — module toggles (modules pane) + suggestion chips (chat pane)
+    // Risk drawer — module header toggles accordion only; bullet click opens detail panel
     document.getElementById('truvala-risk-drawer').addEventListener('click', (e) => {
+      // Bullet click → open detail panel for that specific signal
+      const bullet = e.target.closest('.truvala-compact-bullet[data-module-key]');
+      if (bullet) {
+        const moduleKey  = bullet.dataset.moduleKey;
+        const bulletText = bullet.dataset.bulletText || '';
+        if (moduleKey) openRiskDetailPanel(moduleKey, bulletText);
+        return;
+      }
+      // Module header → only toggle accordion
       const riskBtn = e.target.closest('.truvala-risk-module-btn');
       if (riskBtn) {
-        const mod    = riskBtn.closest('.truvala-risk-module');
-        const body   = mod.querySelector('.truvala-risk-module-body');
+        const mod     = riskBtn.closest('.truvala-risk-module');
+        const body    = mod.querySelector('.truvala-risk-module-body');
         const chevron = riskBtn.querySelector('.truvala-risk-chevron');
-        const open   = body.style.display !== 'none';
+        const open    = body.style.display !== 'none';
         body.style.display = open ? 'none' : '';
         if (chevron) chevron.style.transform = open ? '' : 'rotate(90deg)';
         return;
       }
-      const chip = e.target.closest('.truvala-suggestion-chip');
-      if (chip) { sendChatMessage(chip.textContent); return; }
     });
 
-    // Chat send button + Enter key
-    document.getElementById('truvala-chat-send').addEventListener('click', () => {
-      const input = document.getElementById('truvala-chat-input');
-      sendChatMessage(input.value);
+    // Detail panel close button
+    document.getElementById('truvala-detail-close').addEventListener('click', closeRiskDetailPanel);
+
+    // Detail panel chat send button + Enter key
+    document.getElementById('truvala-detail-chat-send').addEventListener('click', () => {
+      const input = document.getElementById('truvala-detail-chat-input');
+      sendDetailChatMessage(input.value);
     });
-    document.getElementById('truvala-chat-input').addEventListener('keydown', (e) => {
+    document.getElementById('truvala-detail-chat-input').addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
-        sendChatMessage(e.target.value);
+        sendDetailChatMessage(e.target.value);
       }
     });
 

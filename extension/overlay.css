@@ -238,6 +238,105 @@
 
 #truvala-panel.truvala-visible { transform: translateX(0); }
 
+/* ─── Side-tab panel (collapses when risk drawer is open) ───────────────────── */
+
+#truvala-panel {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              width 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  overflow: hidden;
+}
+
+#truvala-panel.truvala-sidetab {
+  width: 38px !important;
+  cursor: pointer;
+  background: rgba(191, 219, 254, 0.92) !important; /* soft blue-200 */
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border-left: 2px solid rgba(59, 130, 246, 0.35);
+  box-shadow: -3px 0 18px rgba(37, 99, 235, 0.12);
+}
+
+#truvala-panel.truvala-sidetab:hover {
+  width: 420px !important;
+  cursor: default;
+  background: rgba(248, 250, 252, 0.97) !important;
+  border-left: 2px solid rgba(59, 130, 246, 0.5);
+  z-index: 2147483645 !important;
+}
+
+/* Fade out main panel content when collapsed */
+#truvala-panel.truvala-sidetab .truvala-panel-header,
+#truvala-panel.truvala-sidetab .truvala-panel-body,
+#truvala-panel.truvala-sidetab .truvala-panel-footer {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+#truvala-panel.truvala-sidetab:hover .truvala-panel-header,
+#truvala-panel.truvala-sidetab:hover .truvala-panel-body,
+#truvala-panel.truvala-sidetab:hover .truvala-panel-footer {
+  opacity: 1;
+  pointer-events: all;
+}
+
+/* Side-tab vertical label */
+.truvala-sidetab-label {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 38px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+  z-index: 2;
+}
+
+#truvala-panel.truvala-sidetab .truvala-sidetab-label {
+  opacity: 1;
+}
+
+#truvala-panel.truvala-sidetab:hover .truvala-sidetab-label {
+  opacity: 0;
+}
+
+.truvala-sidetab-score {
+  font-size: 15px;
+  font-weight: 800;
+  color: #1e40af;
+  line-height: 1;
+}
+
+.truvala-sidetab-text {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #3b82f6;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  transform: rotate(180deg);
+}
+
+/* Shifted positions when panel is in side-tab mode */
+#truvala-risk-drawer.truvala-drawer-shifted {
+  right: 38px !important;
+  transition: right 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.22s ease, transform 0.22s ease !important;
+}
+
+#truvala-risk-detail-panel.truvala-detail-shifted {
+  right: 438px !important;
+  transition: right 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.22s ease, transform 0.22s ease !important;
+}
+
 .truvala-panel-header {
   display: flex;
   align-items: flex-start;
@@ -1873,3 +1972,279 @@
 .truvala-chat-send:hover   { background: #2d4fa3; }
 .truvala-chat-send:active  { transform: scale(0.93); }
 .truvala-chat-send:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+/* ─── Risk detail panel (per-factor Ask Truvala) ─────────────────────────────── */
+
+#truvala-risk-detail-panel {
+  position: fixed !important;
+  top: 0 !important;
+  right: 820px !important;   /* 420 main panel + 400 risk drawer */
+  bottom: 0 !important;
+  z-index: 2147483639 !important;
+  width: 380px;
+  max-width: calc(100vw - 820px);
+  background: rgba(248, 250, 252, 0.97);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border-left: 1px solid rgba(203, 213, 225, 0.9);
+  box-shadow: -12px 0 48px rgba(15, 23, 42, 0.10);
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(16px);
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+#truvala-risk-detail-panel.truvala-visible {
+  opacity: 1;
+  pointer-events: all;
+  transform: translateX(0);
+}
+
+.truvala-detail-body {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  padding: 16px 16px 8px;
+  display: flex;
+  flex-direction: column;
+}
+
+.truvala-detail-body::-webkit-scrollbar { width: 3px; }
+.truvala-detail-body::-webkit-scrollbar-track { background: transparent; }
+.truvala-detail-body::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
+
+.truvala-detail-chat-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+
+.truvala-detail-label-text {
+  font-size: 11px;
+  font-weight: 700;
+  color: #1e3a8a;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.truvala-detail-chat-log {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ─── Compact bullet points in risk drawer modules ───────────────────────────── */
+
+.truvala-compact-bullet {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 5px 16px;
+  font-size: 12.5px;
+  color: #334155;
+  line-height: 1.45;
+}
+
+.truvala-compact-bullet:last-child {
+  padding-bottom: 12px;
+}
+
+.truvala-bullet-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
+.truvala-bullet-text {
+  flex: 1;
+}
+
+/* Clickable bullets */
+.truvala-compact-bullet[data-module-key] {
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.12s ease;
+}
+
+.truvala-compact-bullet[data-module-key]:hover {
+  background: rgba(30, 58, 138, 0.06);
+}
+
+/* ─── Sources animation ──────────────────────────────────────────────────────── */
+
+.truvala-sources-container {
+  font-size: 12px;
+  color: #64748b;
+  padding: 10px 0 4px;
+}
+
+.truvala-sources-header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 7px;
+}
+
+.truvala-sources-spinner {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  border: 1.5px solid #cbd5e1;
+  border-top-color: #3b5bdb;
+  border-radius: 50%;
+  animation: truvala-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes truvala-spin {
+  to { transform: rotate(360deg); }
+}
+
+.truvala-sources-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 4px;
+}
+
+.truvala-source-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0;
+  animation: truvala-source-in 0.25s ease forwards;
+}
+
+@keyframes truvala-source-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.truvala-source-check {
+  color: #10b981;
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.truvala-source-link {
+  font-size: 11px;
+  color: #3b5bdb;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  opacity: 0.85;
+  word-break: break-all;
+}
+
+/* ─── Detail panel response formatting ──────────────────────────────────────── */
+
+.truvala-detail-response {
+  flex: 1;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #1e293b;
+}
+
+.truvala-detail-section-hdr {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #1e3a8a;
+  margin-top: 14px;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(203, 213, 225, 0.6);
+}
+
+.truvala-detail-section-hdr:first-child {
+  margin-top: 0;
+}
+
+.truvala-detail-resp-bullet {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 3px 0;
+  color: #334155;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.truvala-resp-bullet-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #94a3b8;
+  flex-shrink: 0;
+  margin-top: 5px;
+}
+
+.truvala-detail-resp-question {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 4px 0;
+  font-size: 12.5px;
+  color: #1e3a8a;
+  line-height: 1.45;
+}
+
+.truvala-resp-arrow {
+  color: #3b5bdb;
+  font-size: 13px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.truvala-detail-resp-text {
+  font-size: 12.5px;
+  color: #475569;
+  padding: 2px 0;
+  line-height: 1.5;
+}
+
+.truvala-detail-spacer {
+  height: 6px;
+}
+
+/* Detail response message row (no bubble — use card style instead) */
+.truvala-chat-msg.truvala-msg-assistant:has(.truvala-detail-response) {
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.truvala-chat-msg.truvala-msg-assistant .truvala-detail-response {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(203, 213, 225, 0.8);
+  border-radius: 12px;
+  padding: 12px 14px;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.05);
+}
+
+/* Inline source links in detail response */
+.truvala-source-anchor {
+  color: #3b5bdb;
+  text-decoration: none;
+  font-size: 11px;
+  opacity: 0.85;
+  border-bottom: 1px dotted rgba(59, 91, 219, 0.4);
+  transition: opacity 0.12s ease, border-color 0.12s ease;
+  white-space: nowrap;
+}
+
+.truvala-source-anchor:hover {
+  opacity: 1;
+  border-bottom-color: #3b5bdb;
+}
