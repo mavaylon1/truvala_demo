@@ -137,12 +137,6 @@
     document.getElementById('truvala-address').textContent = address;
     const panelBody = document.getElementById('truvala-panel-body');
     panelBody.innerHTML = buildReportHTML(report);
-    if (screenshot) {
-      const img = document.createElement('img');
-      img.className = 'truvala-report-screenshot';
-      img.src = screenshot;
-      panelBody.prepend(img);
-    }
     panelBody.scrollTop = 0;
 
     setState('panel');
@@ -169,6 +163,61 @@
     if (score >= 80) return '#10b981';
     if (score >= 60) return '#f59e0b';
     return '#ef4444';
+  }
+
+  function scoreTier(score) {
+    if (score >= 75) return { label: 'Strong Match',   color: '#10b981' };
+    if (score >= 50) return { label: 'Moderate Match', color: '#f59e0b' };
+    return             { label: 'Weak Match',     color: '#ef4444' };
+  }
+
+  // keyMap shared by prefs form and score summary
+  const FIELD_PREF_MAP = {
+    price: 'max_price', bedrooms: 'min_bedrooms', bathrooms: 'min_bathrooms',
+    property_type: 'property_type', distance: 'max_distance_miles',
+    floors: 'floors', schools: 'schools',
+  };
+
+  function buildScoreSummaryLine(fieldScores) {
+    const fields = Object.entries(fieldScores).map(([key, f]) => {
+      const prefKey    = FIELD_PREF_MAP[key];
+      const importance = prefKey ? (currentPrefs[prefKey]?.importance ?? 3) : 3;
+      const utility    = f.utility ?? 0.5;
+      return {
+        label:     f.label,
+        utility,
+        winScore:  utility * importance,
+        dragScore: (1 - utility) * importance,
+      };
+    });
+
+    const wins = fields
+      .filter(f => f.utility >= 0.75)
+      .sort((a, b) => b.winScore - a.winScore)
+      .slice(0, 2)
+      .map(f => f.label.toLowerCase());
+
+    const drags = fields
+      .filter(f => f.utility <= 0.35)
+      .sort((a, b) => b.dragScore - a.dragScore)
+      .slice(0, 2)
+      .map(f => f.label.toLowerCase());
+
+    const join = arr => arr.length === 1 ? arr[0] : `${arr[0]} and ${arr[1]}`;
+
+    if (wins.length && drags.length) {
+      return `Strong on ${join(wins)} — ${join(drags)} ${drags.length === 1 ? 'is' : 'are'} a concern`;
+    }
+    if (wins.length) {
+      const allWins = fields.filter(f => f.utility >= 0.75).length;
+      return allWins >= Math.ceil(fields.length * 0.6)
+        ? 'Fits well across most criteria'
+        : `Strong match on ${join(wins)}`;
+    }
+    if (drags.length) {
+      return `${join(drags)} ${drags.length === 1 ? 'is' : 'are'} a concern`;
+    }
+    return 'Mixed fit — review the breakdown';
   }
 
   function riskClass(risk) {
@@ -744,22 +793,36 @@
   }
 
   function buildReportHTML(report) {
-    const fieldChips = Object.entries(report.field_scores).map(([key, f]) => {
-      const pct = Math.round(f.utility * 100);
+    const tier        = scoreTier(report.score);
+    const summaryLine = buildScoreSummaryLine(report.field_scores);
+
+    // Compute top win and top drag for the plain-text summary
+    const scoredFields = Object.entries(report.field_scores).map(([key, f]) => {
+      const prefKey    = FIELD_PREF_MAP[key];
+      const importance = prefKey ? (currentPrefs[prefKey]?.importance ?? 3) : 3;
+      const utility    = f.utility ?? 0.5;
+      return { ...f, utility, winScore: utility * importance, dragScore: (1 - utility) * importance };
+    });
+    const topWins  = [...scoredFields].filter(f => f.utility >= 0.75).sort((a, b) => b.winScore  - a.winScore).slice(0, 1);
+    const topDrags = [...scoredFields].filter(f => f.utility <= 0.35).sort((a, b) => b.dragScore - a.dragScore).slice(0, 1);
+
+    const fieldRows = Object.entries(report.field_scores).map(([key, f]) => {
+      const pct   = Math.round(f.utility * 100);
       const color = fieldBarColor(f.utility);
       return `
-        <button class="truvala-breakdown-chip" data-field-key="${key}">
-          <div class="truvala-breakdown-chip-top">
-            <span class="truvala-breakdown-chip-name">${f.label}</span>
-            <span class="truvala-breakdown-chip-pct" style="color:${color}">${pct}%</span>
+        <div class="truvala-field-row">
+          <div class="truvala-field-row-main">
+            <span class="truvala-field-row-name">${f.label}</span>
+            <div class="truvala-field-bar-track truvala-field-row-bar">
+              <div class="truvala-field-bar-fill" style="width:${pct}%;background:${color}"></div>
+            </div>
+            <span class="truvala-field-row-pct" style="color:${color}">${pct}%</span>
+            <span class="truvala-field-row-chevron">›</span>
           </div>
-          <div class="truvala-field-bar-track" style="margin-top:5px">
-            <div class="truvala-field-bar-fill" style="width:${pct}%;background:${color}"></div>
-          </div>
-        </button>`;
+          <div class="truvala-field-row-detail">${f.explanation}</div>
+        </div>`;
     }).join('');
 
-    const summaryHTML = `<p class="truvala-summary-text">${report.summary}</p>`;
 
     return `
       <div class="truvala-score-card">
@@ -767,20 +830,13 @@
           <div class="truvala-score-ring-wrap">${buildScoreRing(report.score)}</div>
           <div class="truvala-score-meta">
             <div class="truvala-score-label">Buyer Fit Score</div>
-            <div class="truvala-score-value" style="color:${scoreColor(report.score)}">${report.score}</div>
-            <span class="truvala-risk-badge ${riskClass(report.risk)}">${report.risk} risk</span>
-            ${buildRiskGauge(report.risk)}
-            <div class="truvala-capex-row" style="margin-top:4px">Est. capex: <strong>${report.capex_estimate}</strong></div>
+            <div class="truvala-score-tier" style="color:${tier.color}">${tier.label}</div>
+            ${topWins.map(f  => `<div class="truvala-summary-line truvala-summary-positive"><span class="truvala-sum-icon">✓</span><span>${f.explanation}</span></div>`).join('')}
+            ${topDrags.map(f => `<div class="truvala-summary-line truvala-summary-concern"><span class="truvala-sum-icon">!</span><span>${f.explanation}</span></div>`).join('')}
           </div>
         </div>
-        <button class="truvala-breakdown-toggle" id="truvala-breakdown-toggle">
-          <span>Score breakdown</span>
-          <span class="truvala-breakdown-main-chevron">▾</span>
-        </button>
-        <div id="truvala-breakdown-body" style="display:none">
-          <div class="truvala-breakdown-grid" id="truvala-breakdown-grid">
-            ${fieldChips}
-          </div>
+        <div class="truvala-field-rows" id="truvala-breakdown-grid">
+          ${fieldRows}
         </div>
       </div>
 
@@ -790,30 +846,7 @@
         <span style="font-size:18px;opacity:0.7;flex-shrink:0">›</span>
       </button>` : ''}
 
-      ${buildCompactRiskHTML(report)}
-
-      <div class="truvala-card">
-        <div class="truvala-card-title">
-          <span class="truvala-card-icon" style="background:#d1fae5;color:#047857">✓</span>
-          What works for you
-        </div>
-        <ul class="truvala-list">
-          ${(report.positives || []).map(text => `
-            <li class="truvala-list-item">
-              <span class="truvala-list-dot positive">✓</span>
-              <span>${text}</span>
-            </li>`).join('')}
-        </ul>
-      </div>
-
-      ${false ? /* summary hidden — restore by replacing false with true */ `
-      <div class="truvala-card">
-        <div class="truvala-card-title">
-          <span class="truvala-card-icon" style="background:#eff6ff;color:#1e3a8a">✦</span>
-          Summary
-        </div>
-        ${summaryHTML}
-      </div>` : ''}`;
+      ${buildCompactRiskHTML(report)}`;
   }
 
   // ─── Field popover ───────────────────────────────────────────────────────────
@@ -1782,6 +1815,19 @@
         return;
       }
 
+      // Field row inline expand (compare mode)
+      if (e.target.closest('.truvala-field-row-main')) {
+        const main    = e.target.closest('.truvala-field-row-main');
+        const row     = main.closest('.truvala-field-row');
+        const detail  = row.querySelector('.truvala-field-row-detail');
+        const chevron = main.querySelector('.truvala-field-row-chevron');
+        const open    = detail.style.display !== 'none';
+        detail.style.display = open ? 'none' : '';
+        if (chevron) chevron.style.transform = open ? '' : 'rotate(90deg)';
+        row.classList.toggle('truvala-field-row--open', !open);
+        return;
+      }
+
       // Collapsible list expand
       const expandBtn = e.target.closest('.truvala-expand-btn[data-target]');
       if (expandBtn) {
@@ -1915,13 +1961,21 @@
         body.style.display = open ? 'none' : '';
         if (chevron) chevron.style.transform = open ? '' : 'rotate(180deg)';
         toggle.style.borderRadius = open ? '0 0 16px 16px' : '0';
-        if (open) closeFieldPopover();
         return;
       }
 
-      // Field chip → popover
-      const chip = e.target.closest('.truvala-breakdown-chip');
-      if (chip) { showFieldPopover(chip); return; }
+      // Field row → inline expand
+      const fieldRowMain = e.target.closest('.truvala-field-row-main');
+      if (fieldRowMain) {
+        const row     = fieldRowMain.closest('.truvala-field-row');
+        const detail  = row.querySelector('.truvala-field-row-detail');
+        const chevron = fieldRowMain.querySelector('.truvala-field-row-chevron');
+        const open    = detail.style.display !== 'none';
+        detail.style.display = open ? 'none' : '';
+        if (chevron) chevron.style.transform = open ? '' : 'rotate(90deg)';
+        row.classList.toggle('truvala-field-row--open', !open);
+        return;
+      }
 
       // Risk module collapse/expand
       const riskBtn = e.target.closest('.truvala-risk-module-btn');
