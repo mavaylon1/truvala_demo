@@ -785,9 +785,9 @@
       </div>
 
       ${report.monthly_costs ? `
-      <button id="truvala-costs-btn" style="width:100%;padding:13px 18px;border-radius:12px;border:none;background:#1e3a8a;color:#fff;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:space-between;font-family:-apple-system,sans-serif;box-shadow:0 4px 14px rgba(30,58,138,0.3);letter-spacing:-0.01em">
+      <button id="truvala-costs-btn" style="width:100%;height:48px;padding:0 18px;border-radius:12px;border:none;background:#1e3a8a;color:#fff;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:space-between;font-family:-apple-system,sans-serif;box-shadow:0 4px 14px rgba(30,58,138,0.3);letter-spacing:-0.01em;white-space:nowrap;flex-shrink:0;box-sizing:border-box">
         <span>Monthly Costs &amp; Savings</span>
-        <span style="font-size:18px;opacity:0.7">›</span>
+        <span style="font-size:18px;opacity:0.7;flex-shrink:0">›</span>
       </button>` : ''}
 
       ${buildCompactRiskHTML(report)}
@@ -1119,11 +1119,13 @@
             <div class="truvala-compare-col-address">${escapeHTML(h.address)}</div>
             <a class="truvala-compare-col-link" href="${escapeHTML(h.url)}" target="_blank">View listing ↗</a>
           </div>
-          <div class="truvala-col-main truvala-compare-col-body">
-            ${h.screenshot ? `<img class="truvala-report-screenshot" src="${h.screenshot}" alt="${escapeHTML(h.address)}">` : ''}
-            ${buildReportHTML(h.report)}
+          <div class="truvala-col-body-slider">
+            <div class="truvala-col-main truvala-compare-col-body">
+              ${h.screenshot ? `<img class="truvala-report-screenshot" src="${h.screenshot}" alt="${escapeHTML(h.address)}">` : ''}
+              ${buildReportHTML(h.report)}
+            </div>
+            <div class="truvala-col-risk truvala-compare-col-body"></div>
           </div>
-          <div class="truvala-col-risk truvala-compare-col-body" style="display:none"></div>
         </div>
       </div>`).join('');
 
@@ -1139,20 +1141,16 @@
 
   function flipToRisk(wrap, home) {
     const col  = wrap.querySelector('.truvala-compare-col');
-    const main = col.querySelector('.truvala-col-main');
     const risk = col.querySelector('.truvala-col-risk');
     if (!risk.innerHTML.trim()) {
       risk.innerHTML = `<div class="truvala-col-risk-content">${buildFullRiskHTML(home.report)}</div>`;
     }
-    main.style.display = 'none';
-    risk.style.display = '';
+    col.classList.add('is-flipped');
     wrap.querySelector('.truvala-col-tab').style.display = 'flex';
   }
 
   function flipBackFromRisk(wrap) {
-    const col = wrap.querySelector('.truvala-compare-col');
-    col.querySelector('.truvala-col-main').style.display = '';
-    col.querySelector('.truvala-col-risk').style.display = 'none';
+    wrap.querySelector('.truvala-compare-col').classList.remove('is-flipped');
     wrap.querySelector('.truvala-col-tab').style.display = 'none';
   }
 
@@ -1729,6 +1727,11 @@
 
     // Compare overlay close
     document.getElementById('truvala-compare-close').addEventListener('click', closeCompare);
+
+    // Clicking blank space in the compare grid minimizes back to the page
+    document.getElementById('truvala-compare-grid').addEventListener('click', e => {
+      if (!e.target.closest('.truvala-compare-col-wrap')) closeCompare();
+    }, true);
 
     // Compare grid — all button interactions handled here via relative DOM traversal
     document.getElementById('truvala-compare-grid').addEventListener('click', e => {
