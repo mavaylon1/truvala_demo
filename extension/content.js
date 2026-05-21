@@ -20,13 +20,20 @@
 
   // ─── Report state ─────────────────────────────────────────────────────────────
 
-  let currentReport   = null;
-  let currentAddress  = '';
+  let currentReport     = null;
+  let currentAddress    = '';
+  let currentScreenshot = null;
 
   // ─── Chat state ───────────────────────────────────────────────────────────────
 
   let chatMessages    = [];   // [{role, content}] full history sent to backend
   let riskDrawerBuilt = false; // prevents rebuilding DOM on re-open
+
+  // ─── Pinned homes state ───────────────────────────────────────────────────────
+
+  let pinnedHomes          = [];  // [{id, address, url, report}] persisted to chrome.storage.local
+  let folderOpen           = false;
+  let compareChatMessages  = [];
 
   // ─── Integration points ──────────────────────────────────────────────────────
 
@@ -35,7 +42,7 @@
     return {
       url: window.location.href,
       page_title: document.title,
-      visible_text: visibleText.length > 14000 ? visibleText.slice(0, 14000) : visibleText,
+      visible_text: visibleText.length > 25000 ? visibleText.slice(0, 25000) : visibleText,
       scraped_at: new Date().toISOString(),
       meta: Object.fromEntries(
         Array.from(document.querySelectorAll('meta'))
@@ -89,6 +96,12 @@
     backdrop.classList.toggle('truvala-visible', state === 'panel');
     mini.classList.toggle('truvala-visible', state === 'minimized');
 
+    const pinBtn = document.getElementById('truvala-pin-btn');
+    if (pinBtn) {
+      const showPin = currentReport !== null && (state === 'panel' || state === 'minimized');
+      pinBtn.classList.toggle('truvala-hidden', !showPin);
+    }
+
     // FAB icon: sliders when report exists and FAB is the way back to prefs
     const reportExists = currentReport !== null;
     fab.innerHTML = (reportExists && state !== 'idle')
@@ -106,30 +119,31 @@
     }
   }
 
-  function storeReport(report, address) {
-    console.log('[Truvala] report received:', JSON.stringify(report, null, 2));
-    currentReport   = report;
-    currentAddress  = address;
-    chatMessages    = [];
-    riskDrawerBuilt = false;
+  function storeReport(report, address, screenshot = null) {
+    currentReport     = report;
+    currentAddress    = address;
+    currentScreenshot = screenshot;
+    chatMessages      = [];
+    riskDrawerBuilt   = false;
 
     // Keep mini bubble up to date
     const miniScore   = document.getElementById('truvala-mini-score');
     const miniAddress = document.getElementById('truvala-mini-address');
-    miniScore.textContent  = report.score;
-    miniScore.style.color  = scoreColor(report.score);
+    miniScore.textContent   = report.score;
+    miniScore.style.color   = scoreColor(report.score);
     miniAddress.textContent = address;
 
     // Populate panel
     document.getElementById('truvala-address').textContent = address;
-    const costsSnippet = buildCostsHTML(report.monthly_costs, report.ecosolar);
-    console.log('[Truvala] costsHTML length:', costsSnippet.length, '| first 200:', costsSnippet.slice(0, 200));
-    const fullHTML = buildReportHTML(report);
-    console.log('[Truvala] fullHTML starts with:', fullHTML.slice(0, 300));
     const panelBody = document.getElementById('truvala-panel-body');
-    panelBody.innerHTML = fullHTML;
+    panelBody.innerHTML = buildReportHTML(report);
+    if (screenshot) {
+      const img = document.createElement('img');
+      img.className = 'truvala-report-screenshot';
+      img.src = screenshot;
+      panelBody.prepend(img);
+    }
     panelBody.scrollTop = 0;
-    console.log('[Truvala] first child tag:', panelBody.firstElementChild?.tagName, '| style:', panelBody.firstElementChild?.getAttribute('style')?.slice(0, 60));
 
     setState('panel');
   }
@@ -343,6 +357,19 @@
       <path d="M1 1l8 8M9 1L1 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
     </svg>`;
 
+  const ICON_PIN = `
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <line x1="12" y1="17" x2="12" y2="22"/>
+      <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/>
+    </svg>`;
+
+  const ICON_FOLDER = `
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white"
+      stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+    </svg>`;
+
   // ─── Cost breakdown HTML ─────────────────────────────────────────────────────
 
   function fmt(n) {
@@ -409,16 +436,16 @@
     const css = (obj) => Object.entries(obj).map(([k, v]) => `${k.replace(/([A-Z])/g, '-$1').toLowerCase()}:${v}`).join(';');
 
     const card   = css({ background: 'rgba(255,255,255,0.92)', border: '1px solid rgba(226,232,240,0.9)', borderRadius: '14px', overflow: 'hidden', marginBottom: '0', fontFamily: '-apple-system,BlinkMacSystemFont,sans-serif' });
-    const title  = css({ fontSize: '11px', fontWeight: '600', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.07em', padding: '14px 16px 8px', display: 'block' });
+    const title  = css({ fontSize: '13px', fontWeight: '600', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.07em', padding: '14px 16px 8px', display: 'block' });
     const rows   = css({ padding: '0 16px 14px', display: 'flex', flexDirection: 'column', gap: '7px' });
     const rowS   = css({ display: 'flex', justifyContent: 'space-between', alignItems: 'center' });
-    const lbl    = css({ fontSize: '12.5px', color: '#475569' });
-    const val    = css({ fontSize: '12.5px', fontWeight: '600', color: '#1e293b' });
-    const bold   = css({ fontSize: '13px', fontWeight: '700', color: '#0f172a' });
+    const lbl    = css({ fontSize: '14px', color: '#475569' });
+    const val    = css({ fontSize: '14px', fontWeight: '600', color: '#1e293b' });
+    const bold   = css({ fontSize: '15px', fontWeight: '700', color: '#0f172a' });
     const hr     = `<div style="height:1px;background:rgba(226,232,240,0.9);margin:4px 0"></div>`;
-    const grn    = css({ fontSize: '12.5px', fontWeight: '600', color: '#059669' });
-    const red    = css({ fontSize: '12.5px', fontWeight: '600', color: '#dc2626' });
-    const note   = css({ fontSize: '11px', color: '#94a3b8', lineHeight: '1.5', padding: '8px 16px 12px', borderTop: '1px solid rgba(226,232,240,0.6)' });
+    const grn    = css({ fontSize: '14px', fontWeight: '600', color: '#059669' });
+    const red    = css({ fontSize: '14px', fontWeight: '600', color: '#dc2626' });
+    const note   = css({ fontSize: '13px', color: '#94a3b8', lineHeight: '1.5', padding: '8px 16px 12px', borderTop: '1px solid rgba(226,232,240,0.6)' });
 
     const row = (l, v, vStyle = val) =>
       `<div style="${rowS}"><span style="${lbl}">${l}</span><span style="${vStyle}">${v}</span></div>`;
@@ -426,7 +453,7 @@
     let costRows = row(`Mortgage (${assumptions.down_payment_pct * 100}% down, ${rate}% APR)`, `${fmt(mortgage)}/mo`);
     costRows += row('Property Tax', `${fmt(property_tax)}/mo`);
     costRows += row('HOA', `${fmt(hoa)}/mo`);
-    if (hoa_note) costRows += `<div style="font-size:11px;color:#d97706;margin-top:-4px">⚠ ${hoa_note}</div>`;
+    if (hoa_note) costRows += `<div style="font-size:15px;color:#d97706;margin-top:-4px">⚠ ${hoa_note}</div>`;
     if (land_lease) costRows += row('Land Lease', `${fmt(land_lease)}/mo`);
     costRows += row('Utilities (est.)', `${fmt(utilities)}/mo`);
 
@@ -440,27 +467,27 @@
       const chart = buildSavingsChart(ecosolar);
 
       const heroStyle = css({ background: 'linear-gradient(135deg,#f0fdf4,#dcfce7)', borderTop: '1px solid rgba(226,232,240,0.9)', padding: '16px' });
-      const heroNum   = css({ fontSize: '28px', fontWeight: '700', color: '#059669', lineHeight: '1', letterSpacing: '-0.03em' });
-      const heroSub   = css({ fontSize: '12px', color: '#047857', marginTop: '2px' });
-      const heroCap   = css({ fontSize: '11px', fontWeight: '600', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '6px' });
+      const heroNum   = css({ fontSize: '32px', fontWeight: '700', color: '#059669', lineHeight: '1', letterSpacing: '-0.03em' });
+      const heroSub   = css({ fontSize: '14px', color: '#047857', marginTop: '2px' });
+      const heroCap   = css({ fontSize: '13px', fontWeight: '600', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '6px' });
 
-      const detailToggle = css({ width: '100%', padding: '9px 16px', background: 'none', border: 'none', borderTop: '1px solid rgba(226,232,240,0.7)', color: '#64748b', fontSize: '12px', fontWeight: '500', cursor: 'pointer', textAlign: 'left', fontFamily: '-apple-system,sans-serif', display: 'flex', justifyContent: 'space-between', alignItems: 'center' });
+      const detailToggle = css({ width: '100%', padding: '9px 16px', background: 'none', border: 'none', borderTop: '1px solid rgba(226,232,240,0.7)', color: '#64748b', fontSize: '14px', fontWeight: '500', cursor: 'pointer', textAlign: 'left', fontFamily: '-apple-system,sans-serif', display: 'flex', justifyContent: 'space-between', alignItems: 'center' });
       const detailRows  = css({ padding: '0 16px 14px', display: 'flex', flexDirection: 'column', gap: '6px' });
 
       ecoHTML = `
         <div style="display:flex;align-items:center;gap:10px;padding:14px 16px 10px;border-top:1px solid rgba(226,232,240,0.9)">
           <img src="${logo_url}" alt="EcoSolar USA" style="height:26px;width:auto;object-fit:contain">
-          <span style="font-size:10px;font-weight:600;color:#059669;background:#d1fae5;padding:2px 7px;border-radius:999px;text-transform:uppercase;letter-spacing:.05em">Partner</span>
+          <span style="font-size:14px;font-weight:600;color:#059669;background:#d1fae5;padding:2px 7px;border-radius:999px;text-transform:uppercase;letter-spacing:.05em">Partner</span>
         </div>
 
         <div style="${heroStyle}">
           <div style="${heroCap}">After panels paid off (est. ${estimated_payoff_years} yrs)</div>
-          <div style="${heroNum}">${fmt(monthlySavedAfter)}<span style="font-size:14px;font-weight:500">/mo saved</span></div>
+          <div style="${heroNum}">${fmt(monthlySavedAfter)}<span style="font-size:18px;font-weight:500">/mo saved</span></div>
           <div style="${heroSub}">New monthly total: ${fmt(afterPayoffTotal)}/mo · Down from ${fmt(total)}/mo</div>
         </div>
 
         ${chart ? `<div style="padding:14px 16px 8px">
-          <div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">Cumulative Savings Over Time</div>
+          <div style="font-size:15px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">Cumulative Savings Over Time</div>
           ${chart}
         </div>` : ''}
 
@@ -518,7 +545,7 @@
           ${levels.map((_, i) => `<div style="flex:1;background:${i <= idx ? colors[idx] : '#e2e8f0'};opacity:${i === idx ? 1 : i < idx ? 0.4 : 0.2}"></div>`).join('')}
         </div>
         <div style="display:flex;justify-content:space-between;margin-top:4px">
-          ${levels.map(l => `<span style="font-size:9px;color:#94a3b8">${l}</span>`).join('')}
+          ${levels.map(l => `<span style="font-size:13px;color:#94a3b8">${l}</span>`).join('')}
         </div>
       </div>`;
   }
@@ -550,68 +577,61 @@
 
   function buildRiskModuleHTML(module) {
     if (!module) return '';
-    const signals = module.computed_risk_signals || [];
-    const facts   = module.observed_facts || [];
-    const inferred = module.inferred_concerns || [];
+    const signals   = module.computed_risk_signals || [];
+    const facts     = module.observed_facts || [];
+    const inferred  = module.inferred_concerns || [];
     const questions = module.buyer_questions || [];
 
     const badge = signals.length
       ? `<span class="truvala-module-badge truvala-badge-warn">${signals.length} signal${signals.length !== 1 ? 's' : ''}</span>`
       : `<span class="truvala-module-badge truvala-badge-clear">✓ Clear</span>`;
 
-    const signalsHTML = signals.map(s => {
+    const buildSignal = s => {
       const { color, text } = signalSeverity(s);
       return `<div class="truvala-risk-item truvala-signal-item">
-        <span class="truvala-signal-dot" style="background:${color}"></span>
-        <span>${text}</span>
+        <span class="truvala-signal-dot" style="background:${color}"></span><span>${text}</span>
       </div>`;
-    }).join('');
+    };
+    const buildFact = f => `<div class="truvala-risk-item truvala-fact-item">
+      <span class="truvala-fact-dot"></span><span>${f}</span>
+    </div>`;
+    const buildInferred = c => `<div class="truvala-risk-item truvala-inferred-item">${c}</div>`;
+    const buildQuestion = q => `<div class="truvala-risk-item truvala-question-item">
+      <span class="truvala-question-arrow">→</span><span>${q}</span>
+    </div>`;
 
-    const factsHTML = facts.map(f =>
-      `<div class="truvala-risk-item truvala-fact-item">
-        <span class="truvala-fact-dot"></span><span>${f}</span>
-      </div>`
-    ).join('');
+    // Primary items: signals if any, else facts
+    const primaryItems = signals.length ? signals.map(buildSignal) : facts.map(buildFact);
+    const primaryLabel = signals.length ? 'Computed Risk Signals' : 'Observed Facts';
 
-    const inferredHTML = inferred.map(c =>
-      `<div class="truvala-risk-item truvala-inferred-item">${c}</div>`
-    ).join('');
+    const visible = primaryItems.slice(0, 2);
+    const moreId  = `truvala-more-${Math.random().toString(36).slice(2, 7)}`;
 
-    const questionsHTML = questions.map(q =>
-      `<div class="truvala-risk-item truvala-question-item">
-        <span class="truvala-question-arrow">→</span><span>${q}</span>
-      </div>`
-    ).join('');
+    const hiddenParts = [
+      ...primaryItems.slice(2),
+      signals.length && facts.length
+        ? `<div class="truvala-risk-subsection"><div class="truvala-risk-sub-label">Observed Facts</div>${facts.map(buildFact).join('')}</div>` : '',
+      inferred.length
+        ? `<div class="truvala-risk-subsection truvala-subsection-inferred"><div class="truvala-risk-sub-label">Inferred <span class="truvala-inferred-tag">not confirmed</span></div>${inferred.map(buildInferred).join('')}</div>` : '',
+      questions.length
+        ? `<div class="truvala-risk-subsection truvala-subsection-questions"><div class="truvala-risk-sub-label">Ask Before You Tour</div>${questions.map(buildQuestion).join('')}</div>` : '',
+    ].filter(Boolean);
 
     return `
       <div class="truvala-risk-module">
-        <button class="truvala-risk-module-btn">
+        <div class="truvala-risk-module-header">
           <span class="truvala-risk-module-title">${module.section}</span>
-          <div class="truvala-risk-module-right">${badge}<span class="truvala-risk-chevron">›</span></div>
-        </button>
-        <div class="truvala-risk-module-body" style="display:none">
-          ${facts.length ? `
+          <div class="truvala-risk-module-right">${badge}</div>
+        </div>
+        <div class="truvala-risk-module-body">
+          ${primaryItems.length ? `
             <div class="truvala-risk-subsection">
-              <div class="truvala-risk-sub-label">Observed Facts</div>
-              ${factsHTML}
+              <div class="truvala-risk-sub-label">${primaryLabel}</div>
+              ${visible.join('')}
             </div>` : ''}
-          ${signals.length ? `
-            <div class="truvala-risk-subsection truvala-subsection-signals">
-              <div class="truvala-risk-sub-label">Computed Risk Signals</div>
-              ${signalsHTML}
-            </div>` : ''}
-          ${inferred.length ? `
-            <div class="truvala-risk-subsection truvala-subsection-inferred">
-              <div class="truvala-risk-sub-label">
-                Inferred <span class="truvala-inferred-tag">not confirmed</span>
-              </div>
-              ${inferredHTML}
-            </div>` : ''}
-          ${questions.length ? `
-            <div class="truvala-risk-subsection truvala-subsection-questions">
-              <div class="truvala-risk-sub-label">Ask Before You Tour</div>
-              ${questionsHTML}
-            </div>` : ''}
+          ${hiddenParts.length ? `
+            <div id="${moreId}" style="display:none">${hiddenParts.join('')}</div>
+            <button class="truvala-module-show-more" data-target="${moreId}">Show more ›</button>` : ''}
         </div>
       </div>`;
   }
@@ -635,22 +655,29 @@
         </div>
       </div>`;
 
+    const visible = high.slice(0, 2);
+    const moreId  = `truvala-more-${Math.random().toString(36).slice(2, 7)}`;
+
+    const hiddenParts = [
+      ...high.slice(2).map(buildItem),
+      medium.length ? `<div class="truvala-checklist-group-label" style="margin-top:10px">Medium Priority</div>${medium.map(buildItem).join('')}` : '',
+    ].filter(Boolean);
+
     return `
       <div class="truvala-risk-module">
-        <button class="truvala-risk-module-btn">
+        <div class="truvala-risk-module-header">
           <span class="truvala-risk-module-title">${checklist.section}</span>
           <div class="truvala-risk-module-right">
             <span class="truvala-module-badge truvala-badge-warn">${items.length} items</span>
-            <span class="truvala-risk-chevron">›</span>
           </div>
-        </button>
-        <div class="truvala-risk-module-body" style="display:none">
-          ${high.length ? `
+        </div>
+        <div class="truvala-risk-module-body">
+          ${visible.length ? `
             <div class="truvala-checklist-group-label">High Priority</div>
-            ${high.map(buildItem).join('')}` : ''}
-          ${medium.length ? `
-            <div class="truvala-checklist-group-label" style="margin-top:10px">Medium Priority</div>
-            ${medium.map(buildItem).join('')}` : ''}
+            ${visible.map(buildItem).join('')}` : ''}
+          ${hiddenParts.length ? `
+            <div id="${moreId}" style="display:none">${hiddenParts.join('')}</div>
+            <button class="truvala-module-show-more" data-target="${moreId}">Show more ›</button>` : ''}
         </div>
       </div>`;
   }
@@ -659,17 +686,32 @@
     const w = (warnings || []);
     const q = (questions || []);
     if (!w.length && !q.length) return '';
+
+    const visible = w.slice(0, 2);
+    const moreId  = `truvala-more-${Math.random().toString(36).slice(2, 7)}`;
+
+    const hiddenParts = [
+      ...w.slice(2).map(item => `<div class="truvala-interpreted-item">• ${item}</div>`),
+      q.length ? `<div class="truvala-interpreted-subheader">Additional questions</div>${q.map(item => `<div class="truvala-interpreted-item">→ ${item}</div>`).join('')}` : '',
+    ].filter(Boolean);
+
     return `
-      <div class="truvala-interpreted-risk">
-        <div class="truvala-interpreted-header">
-          <span class="truvala-interpreted-label">Interpreted Risk</span>
-          <span class="truvala-ai-tag">AI</span>
+      <div class="truvala-risk-module truvala-interpreted-risk">
+        <div class="truvala-risk-module-header">
+          <span class="truvala-risk-module-title">Interpreted Risk</span>
+          <div class="truvala-risk-module-right">
+            <span class="truvala-ai-tag">AI</span>
+          </div>
         </div>
-        <p class="truvala-interpreted-note">Model observations derived from the above analysis. Not deterministic.</p>
-        ${w.map(item => `<div class="truvala-interpreted-item">• ${item}</div>`).join('')}
-        ${q.length ? `
-          <div class="truvala-interpreted-subheader">Additional questions</div>
-          ${q.map(item => `<div class="truvala-interpreted-item">→ ${item}</div>`).join('')}` : ''}
+        <div class="truvala-risk-module-body">
+          <div class="truvala-risk-subsection">
+            <p class="truvala-interpreted-note">Model observations derived from the above analysis. Not deterministic.</p>
+            ${visible.map(item => `<div class="truvala-interpreted-item">• ${item}</div>`).join('')}
+          </div>
+          ${hiddenParts.length ? `
+            <div id="${moreId}" style="display:none"><div class="truvala-risk-subsection">${hiddenParts.join('')}</div></div>
+            <button class="truvala-module-show-more" data-target="${moreId}">Show more ›</button>` : ''}
+        </div>
       </div>`;
   }
 
@@ -697,7 +739,7 @@
           ${buildRiskModuleHTML(rr.listing_language)}
           ${buildChecklistHTML(rr.verification_checklist)}
           ${buildInterpretedRiskHTML(report.warnings, report.questions)}
-        ` : `<p style="font-size:13px;color:#94a3b8;padding:8px 0">Risk analysis not available for this listing.</p>`}
+        ` : `<p style="font-size:17px;color:#94a3b8;padding:8px 0">Risk analysis not available for this listing.</p>`}
       </div>`;
   }
 
@@ -748,14 +790,6 @@
         <span style="font-size:18px;opacity:0.7">›</span>
       </button>` : ''}
 
-      <div class="truvala-card">
-        <div class="truvala-card-title">
-          <span class="truvala-card-icon" style="background:#eff6ff;color:#1e3a8a">✦</span>
-          Summary
-        </div>
-        ${summaryHTML}
-      </div>
-
       ${buildCompactRiskHTML(report)}
 
       <div class="truvala-card">
@@ -770,7 +804,16 @@
               <span>${text}</span>
             </li>`).join('')}
         </ul>
-      </div>`;
+      </div>
+
+      ${false ? /* summary hidden — restore by replacing false with true */ `
+      <div class="truvala-card">
+        <div class="truvala-card-title">
+          <span class="truvala-card-icon" style="background:#eff6ff;color:#1e3a8a">✦</span>
+          Summary
+        </div>
+        ${summaryHTML}
+      </div>` : ''}`;
   }
 
   // ─── Field popover ───────────────────────────────────────────────────────────
@@ -950,6 +993,409 @@
 
   function closeRiskDrawer() {
     document.getElementById('truvala-risk-drawer').classList.remove('truvala-visible');
+  }
+
+  // ─── Pinned homes ─────────────────────────────────────────────────────────────
+
+  function loadPinnedHomes() {
+    chrome.storage.local.get(['truvala_pinned'], result => {
+      pinnedHomes = result.truvala_pinned || [];
+      updateFolderUI();
+      // Auto-restore report if this page is already pinned
+      const match = pinnedHomes.find(h => h.url === window.location.href);
+      if (match) restorePinnedReport(match);
+    });
+  }
+
+  function restorePinnedReport(home) {
+    storeReport(home.report, home.address, home.screenshot || null);
+  }
+
+  function savePinnedHomes() {
+    chrome.storage.local.set({ truvala_pinned: pinnedHomes });
+  }
+
+  function pinCurrentListing(screenshot = null) {
+    if (!currentReport) return;
+    const url = window.location.href;
+    if (pinnedHomes.find(h => h.url === url)) {
+      showToast('Already pinned');
+      return;
+    }
+    if (pinnedHomes.length >= 4) {
+      showToast('4/4 pinned — remove a listing to add more');
+      return;
+    }
+    const id = Date.now().toString();
+    pinnedHomes.push({ id, address: currentAddress, url, report: currentReport, screenshot });
+    savePinnedHomes();
+    updateFolderUI();
+    showToast('Pinned!');
+  }
+
+  function unpinHome(id) {
+    pinnedHomes = pinnedHomes.filter(h => h.id !== id);
+    savePinnedHomes();
+    if (pinnedHomes.length === 0 && folderOpen) {
+      folderOpen = false;
+      document.getElementById('truvala-fan').classList.remove('truvala-fan-open');
+    } else if (folderOpen) {
+      renderFan();
+    }
+    updateFolderUI();
+  }
+
+  function updateFolderUI() {
+    const folder  = document.getElementById('truvala-folder');
+    const counter = document.getElementById('truvala-folder-counter');
+    const pinBtn  = document.getElementById('truvala-pin-btn');
+    if (!folder) return;
+    const count = pinnedHomes.length;
+    counter.textContent = count;
+    folder.classList.toggle('truvala-hidden', count === 0);
+    if (pinBtn) {
+      const alreadyPinned = !!pinnedHomes.find(h => h.url === window.location.href);
+      pinBtn.classList.toggle('truvala-pin-active', alreadyPinned);
+    }
+  }
+
+  function toggleFolder() {
+    if (pinnedHomes.length === 0) return;
+    folderOpen = !folderOpen;
+    document.getElementById('truvala-fan').classList.toggle('truvala-fan-open', folderOpen);
+    if (folderOpen) renderFan();
+  }
+
+  function renderFan() {
+    const fan = document.getElementById('truvala-fan');
+    if (!fan) return;
+    fan.innerHTML = pinnedHomes.map(h => `
+      <div class="truvala-fan-bubble" data-url="${escapeHTML(h.url)}">
+        <div class="truvala-fan-score" style="color:${scoreColor(h.report.score)}">${h.report.score}</div>
+        <div class="truvala-fan-info">
+          <div class="truvala-fan-label">Buyer Fit</div>
+          <div class="truvala-fan-address">${escapeHTML(h.address)}</div>
+        </div>
+        <div class="truvala-fan-chevron">›</div>
+        <button class="truvala-fan-remove" data-id="${h.id}" aria-label="Remove">✕</button>
+      </div>`).join('') + `
+      <button class="truvala-compare-open-btn" id="truvala-compare-open">
+        Compare ${pinnedHomes.length} listing${pinnedHomes.length !== 1 ? 's' : ''}
+        <span class="truvala-compare-open-arrow">→</span>
+      </button>`;
+  }
+
+  // ─── Toast ───────────────────────────────────────────────────────────────────
+
+  function showToast(msg) {
+    const toast = document.getElementById('truvala-toast');
+    if (!toast) return;
+    toast.textContent = msg;
+    toast.classList.add('truvala-toast-show');
+    setTimeout(() => toast.classList.remove('truvala-toast-show'), 2600);
+  }
+
+  // ─── Compare overlay ─────────────────────────────────────────────────────────
+
+  function openCompare() {
+    folderOpen = false;
+    document.getElementById('truvala-fan').classList.remove('truvala-fan-open');
+    compareChatMessages = [];
+    document.getElementById('truvala-compare-chat-log').innerHTML = '';
+
+    const grid = document.getElementById('truvala-compare-grid');
+    grid.innerHTML = pinnedHomes.map((h, i) => `
+      <div class="truvala-compare-col-wrap" data-home-index="${i}">
+        <button class="truvala-col-tab" style="display:none" aria-label="Back to report">
+          <div class="truvala-mini-score" style="color:${scoreColor(h.report.score)}">${h.report.score}</div>
+          <div class="truvala-mini-info">
+            <div class="truvala-mini-label">Buyer Fit</div>
+            <div class="truvala-mini-address">${escapeHTML(h.address)}</div>
+          </div>
+          <div class="truvala-mini-chevron">›</div>
+        </button>
+        <div class="truvala-compare-col">
+          <div class="truvala-compare-col-header">
+            <div class="truvala-compare-col-address">${escapeHTML(h.address)}</div>
+            <a class="truvala-compare-col-link" href="${escapeHTML(h.url)}" target="_blank">View listing ↗</a>
+          </div>
+          <div class="truvala-col-main truvala-compare-col-body">
+            ${h.screenshot ? `<img class="truvala-report-screenshot" src="${h.screenshot}" alt="${escapeHTML(h.address)}">` : ''}
+            ${buildReportHTML(h.report)}
+          </div>
+          <div class="truvala-col-risk truvala-compare-col-body" style="display:none"></div>
+        </div>
+      </div>`).join('');
+
+    document.getElementById('truvala-compare-overlay').classList.add('truvala-compare-open');
+    initCompareChat();
+  }
+
+  function closeCompare() {
+    document.getElementById('truvala-compare-overlay').classList.remove('truvala-compare-open');
+  }
+
+  // ─── Compare column risk flip ─────────────────────────────────────────────────
+
+  function flipToRisk(wrap, home) {
+    const col  = wrap.querySelector('.truvala-compare-col');
+    const main = col.querySelector('.truvala-col-main');
+    const risk = col.querySelector('.truvala-col-risk');
+    if (!risk.innerHTML.trim()) {
+      risk.innerHTML = `<div class="truvala-col-risk-content">${buildFullRiskHTML(home.report)}</div>`;
+    }
+    main.style.display = 'none';
+    risk.style.display = '';
+    wrap.querySelector('.truvala-col-tab').style.display = 'flex';
+  }
+
+  function flipBackFromRisk(wrap) {
+    const col = wrap.querySelector('.truvala-compare-col');
+    col.querySelector('.truvala-col-main').style.display = '';
+    col.querySelector('.truvala-col-risk').style.display = 'none';
+    wrap.querySelector('.truvala-col-tab').style.display = 'none';
+  }
+
+  // ─── Compare chat ─────────────────────────────────────────────────────────────
+
+  function appendCompareChatMessage(role, content) {
+    const log = document.getElementById('truvala-compare-chat-log');
+    if (!log) return;
+    const div = document.createElement('div');
+    div.className = `truvala-chat-msg truvala-msg-${role}`;
+    div.innerHTML = role === 'user'
+      ? `<div class="truvala-msg-bubble">${escapeHTML(content)}</div>`
+      : `<div class="truvala-msg-avatar">T</div><div class="truvala-msg-bubble">${escapeHTML(content)}</div>`;
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function showCompareChatTyping() {
+    const log = document.getElementById('truvala-compare-chat-log');
+    if (!log || document.getElementById('truvala-compare-typing')) return;
+    const div = document.createElement('div');
+    div.id = 'truvala-compare-typing';
+    div.className = 'truvala-chat-msg truvala-msg-assistant';
+    div.innerHTML = `
+      <div class="truvala-msg-avatar">T</div>
+      <div class="truvala-msg-bubble truvala-typing-bubble">
+        <span class="truvala-typing-dot"></span>
+        <span class="truvala-typing-dot"></span>
+        <span class="truvala-typing-dot"></span>
+      </div>`;
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function removeCompareChatTyping() {
+    document.getElementById('truvala-compare-typing')?.remove();
+  }
+
+  function renderCompareSuggestions(questions) {
+    const log = document.getElementById('truvala-compare-chat-log');
+    if (!log) return;
+    const div = document.createElement('div');
+    div.className = 'truvala-chat-suggestions';
+    div.innerHTML = questions.map(q => `<button class="truvala-suggestion-chip">${escapeHTML(q)}</button>`).join('');
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  async function initCompareChat() {
+    showCompareChatTyping();
+    const allListings = pinnedHomes.map(h => ({
+      address:        h.address,
+      score:          h.report.score,
+      risk:           h.report.risk,
+      capex_estimate: h.report.capex_estimate,
+      listing:        h.report.listing   || {},
+      risk_report:    h.report.risk_report || {},
+    }));
+    try {
+      const res = await fetch(CHAT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [],
+          risk_report: {}, listing: {}, preferences: currentPrefs,
+          score: 0, capex_estimate: '',
+          compare_listings: allListings,
+        }),
+      });
+      const data = await res.json();
+      removeCompareChatTyping();
+      appendCompareChatMessage('assistant', data.message);
+      if (data.suggested_questions?.length) renderCompareSuggestions(data.suggested_questions);
+    } catch {
+      removeCompareChatTyping();
+      appendCompareChatMessage('assistant', "I've reviewed all your pinned listings. What would you like to compare?");
+    }
+  }
+
+  async function sendCompareChatMessage(content) {
+    const text = content.trim();
+    if (!text) return;
+    const input   = document.getElementById('truvala-compare-input');
+    const sendBtn = document.getElementById('truvala-compare-send');
+    if (input)   input.disabled   = true;
+    if (sendBtn) sendBtn.disabled = true;
+    document.querySelector('#truvala-compare-chat-log .truvala-chat-suggestions')?.remove();
+    compareChatMessages.push({ role: 'user', content: text });
+    appendCompareChatMessage('user', text);
+    if (input) input.value = '';
+    showCompareChatTyping();
+    const allListings = pinnedHomes.map(h => ({
+      address: h.address, score: h.report.score, risk: h.report.risk,
+      capex_estimate: h.report.capex_estimate,
+      listing: h.report.listing || {}, risk_report: h.report.risk_report || {},
+    }));
+    try {
+      const res = await fetch(CHAT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: compareChatMessages,
+          risk_report: {}, listing: {}, preferences: currentPrefs,
+          score: 0, capex_estimate: '',
+          compare_listings: allListings,
+        }),
+      });
+      const data = await res.json();
+      removeCompareChatTyping();
+      compareChatMessages.push({ role: 'assistant', content: data.message });
+      appendCompareChatMessage('assistant', data.message);
+    } catch {
+      removeCompareChatTyping();
+      const err = "Sorry, something went wrong. Please try again.";
+      compareChatMessages.push({ role: 'assistant', content: err });
+      appendCompareChatMessage('assistant', err);
+    } finally {
+      if (input)   { input.disabled = false; input.focus(); }
+      if (sendBtn) sendBtn.disabled = false;
+    }
+  }
+
+  // ─── Crop / screenshot ────────────────────────────────────────────────────────
+
+  function startCropMode() {
+    if (!currentReport) return;
+    if (state === 'panel') setState('minimized');
+
+    const rect = document.getElementById('truvala-crop-rect');
+    const W = Math.round(Math.min(window.innerWidth  * 0.58, 700));
+    const H = Math.round(Math.min(window.innerHeight * 0.45, 450));
+    const L = Math.round((window.innerWidth  - W) / 2);
+    const T = Math.round((window.innerHeight - H) / 2);
+    Object.assign(rect.style, { left: L+'px', top: T+'px', width: W+'px', height: H+'px' });
+
+    document.getElementById('truvala-crop-overlay').classList.add('truvala-crop-active');
+  }
+
+  function stopCropMode() {
+    document.getElementById('truvala-crop-overlay').classList.remove('truvala-crop-active');
+  }
+
+  async function captureAndPin() {
+    const rect = document.getElementById('truvala-crop-rect');
+    const x = parseFloat(rect.style.left);
+    const y = parseFloat(rect.style.top);
+    const w = parseFloat(rect.style.width);
+    const h = parseFloat(rect.style.height);
+
+    stopCropMode();
+
+    // Hide all Truvala UI so the screenshot is clean listing content
+    const root = document.getElementById('truvala-root');
+    root.style.display = 'none';
+    // Two rAFs ensure at least one full repaint before capture
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+    let screenshot = null;
+    try {
+      const response = await new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage({ action: 'captureTab' }, res => {
+          if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
+          else resolve(res);
+        });
+      });
+
+      if (response?.dataUrl) {
+        const dpr = window.devicePixelRatio || 1;
+        const canvas = document.createElement('canvas');
+        canvas.width  = Math.round(w * dpr);
+        canvas.height = Math.round(h * dpr);
+        const ctx = canvas.getContext('2d');
+        await new Promise(r => {
+          const img = new Image();
+          img.onload = () => {
+            ctx.drawImage(img,
+              Math.round(x * dpr), Math.round(y * dpr),
+              Math.round(w * dpr), Math.round(h * dpr),
+              0, 0, canvas.width, canvas.height
+            );
+            r();
+          };
+          img.src = response.dataUrl;
+        });
+        screenshot = canvas.toDataURL('image/jpeg', 0.82);
+      }
+    } catch (err) {
+      console.error('[Truvala] Screenshot failed:', err);
+    } finally {
+      root.style.display = '';
+    }
+
+    pinCurrentListing(screenshot);
+  }
+
+  function bindCropEvents() {
+    const rect = document.getElementById('truvala-crop-rect');
+    let drag = null, resize = null;
+
+    rect.addEventListener('mousedown', e => {
+      if (e.target.closest('.truvala-crop-handle') || e.target.closest('.truvala-crop-actions')) return;
+      e.preventDefault();
+      drag = { x: e.clientX, y: e.clientY, l: parseFloat(rect.style.left), t: parseFloat(rect.style.top) };
+      document.body.style.cursor = 'move';
+    });
+
+    rect.querySelectorAll('.truvala-crop-handle').forEach(handle => {
+      handle.addEventListener('mousedown', e => {
+        e.preventDefault(); e.stopPropagation();
+        resize = {
+          type: handle.dataset.handle,
+          x: e.clientX, y: e.clientY,
+          l: parseFloat(rect.style.left), t: parseFloat(rect.style.top),
+          w: parseFloat(rect.style.width), h: parseFloat(rect.style.height),
+        };
+        document.body.style.cursor = getComputedStyle(handle).cursor;
+      });
+    });
+
+    document.addEventListener('mousemove', e => {
+      if (drag) {
+        rect.style.left = (drag.l + e.clientX - drag.x) + 'px';
+        rect.style.top  = (drag.t + e.clientY - drag.y) + 'px';
+      }
+      if (resize) {
+        const dx = e.clientX - resize.x, dy = e.clientY - resize.y;
+        const MIN = 80;
+        let { l, t, w, h } = resize;
+        if (resize.type.includes('e')) w = Math.max(MIN, w + dx);
+        if (resize.type.includes('s')) h = Math.max(MIN, h + dy);
+        if (resize.type.includes('w')) { const nw = Math.max(MIN, w - dx); l += w - nw; w = nw; }
+        if (resize.type.includes('n')) { const nh = Math.max(MIN, h - dy); t += h - nh; h = nh; }
+        Object.assign(rect.style, { left: l+'px', top: t+'px', width: w+'px', height: h+'px' });
+      }
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (drag || resize) document.body.style.cursor = '';
+      drag = null; resize = null;
+    });
+
+    document.getElementById('truvala-crop-cancel').addEventListener('click', stopCropMode);
+    document.getElementById('truvala-crop-confirm').addEventListener('click', captureAndPin);
   }
 
   // ─── Chat ─────────────────────────────────────────────────────────────────────
@@ -1137,7 +1583,6 @@
             <div class="truvala-panel-logo">Truvala</div>
             <div class="truvala-panel-address" id="truvala-address"></div>
           </div>
-          <button id="truvala-costs-toggle" style="font-size:11px;font-weight:600;padding:4px 10px;border-radius:8px;border:1.5px solid #e2e8f0;background:#f8fafc;color:#1e3a8a;cursor:pointer">Costs</button>
           <button class="truvala-panel-close" id="truvala-panel-close" aria-label="Close report">
             ${ICON_CLOSE}
           </button>
@@ -1153,7 +1598,7 @@
       <div id="truvala-risk-drawer" class="truvala-risk-drawer" role="complementary" aria-label="Full risk report">
         <div class="truvala-drawer-header">
           <div class="truvala-drawer-title">
-            <span style="font-size:15px">⚠</span>
+            <span style="font-size:17px">⚠</span>
             Full Risk Report
           </div>
           <button class="truvala-panel-close" id="truvala-risk-drawer-close" aria-label="Close risk report">
@@ -1177,6 +1622,64 @@
         <div class="truvala-popover-pref"></div>
         <div class="truvala-popover-imp"></div>
         <div class="truvala-popover-expl"></div>
+      </div>
+
+      <button id="truvala-pin-btn" class="truvala-pin-btn truvala-hidden" aria-label="Pin this listing">
+        ${ICON_PIN}
+      </button>
+
+      <button id="truvala-folder" class="truvala-folder truvala-hidden" aria-label="Pinned listings">
+        ${ICON_FOLDER}
+        <span id="truvala-folder-counter" class="truvala-folder-counter">0</span>
+      </button>
+
+      <div id="truvala-fan" class="truvala-fan"></div>
+
+      <div id="truvala-compare-overlay" class="truvala-compare-overlay">
+        <div class="truvala-compare-header">
+          <div class="truvala-compare-title">
+            <span style="font-size:17px">⊞</span> Compare Listings
+          </div>
+          <button class="truvala-panel-close" id="truvala-compare-close" aria-label="Close compare">
+            ${ICON_CLOSE}
+          </button>
+        </div>
+        <div class="truvala-compare-body">
+          <div class="truvala-compare-grid" id="truvala-compare-grid"></div>
+          <div class="truvala-compare-chat-panel" id="truvala-compare-chat-panel">
+            <div class="truvala-compare-chat-top">
+              <div class="truvala-chat-divider" style="padding:12px 16px 8px">
+                <span class="truvala-chat-divider-label">Ask Truvala</span>
+                <span class="truvala-ai-tag">AI</span>
+              </div>
+              <div class="truvala-compare-chat-log" id="truvala-compare-chat-log"></div>
+            </div>
+            <div class="truvala-chat-input-area">
+              <input class="truvala-chat-input" id="truvala-compare-input"
+                type="text" placeholder="Compare these listings…" autocomplete="off" spellcheck="false">
+              <button class="truvala-chat-send" id="truvala-compare-send" aria-label="Send">↑</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="truvala-toast" class="truvala-toast"></div>
+
+      <div id="truvala-crop-overlay">
+        <div id="truvala-crop-backdrop"></div>
+        <div id="truvala-crop-rect">
+          <div class="truvala-crop-handle" data-handle="nw"></div>
+          <div class="truvala-crop-handle" data-handle="ne"></div>
+          <div class="truvala-crop-handle" data-handle="sw"></div>
+          <div class="truvala-crop-handle" data-handle="se"></div>
+          <div class="truvala-crop-toolbar">
+            <span class="truvala-crop-hint">Drag to move · corners to resize</span>
+            <div class="truvala-crop-actions">
+              <button id="truvala-crop-cancel" class="truvala-crop-btn-cancel">Cancel</button>
+              <button id="truvala-crop-confirm" class="truvala-crop-btn-confirm">Capture &amp; Pin</button>
+            </div>
+          </div>
+        </div>
       </div>`;
 
     document.body.appendChild(root);
@@ -1195,6 +1698,122 @@
       if (state === 'idle')      setState('prefs');
       if (state === 'panel')     setState('editing');
       if (state === 'minimized') setState('editing');
+    });
+
+    // Pin button → start crop/screenshot flow
+    document.getElementById('truvala-pin-btn').addEventListener('click', startCropMode);
+
+    bindCropEvents();
+
+    // Folder opens/closes the fan
+    document.getElementById('truvala-folder').addEventListener('click', toggleFolder);
+
+    // Fan: bubble navigation + remove + compare
+    document.getElementById('truvala-fan').addEventListener('click', (e) => {
+      const removeBtn = e.target.closest('.truvala-fan-remove');
+      if (removeBtn) { e.stopPropagation(); unpinHome(removeBtn.dataset.id); return; }
+      if (e.target.closest('#truvala-compare-open')) { openCompare(); return; }
+      const bubble = e.target.closest('.truvala-fan-bubble');
+      if (bubble && bubble.dataset.url) {
+        const home = pinnedHomes.find(h => h.url === bubble.dataset.url);
+        if (!home) return;
+        folderOpen = false;
+        document.getElementById('truvala-fan').classList.remove('truvala-fan-open');
+        if (window.location.href === home.url) {
+          restorePinnedReport(home);
+        } else {
+          window.open(home.url, '_blank');
+        }
+      }
+    });
+
+    // Compare overlay close
+    document.getElementById('truvala-compare-close').addEventListener('click', closeCompare);
+
+    // Compare grid — all button interactions handled here via relative DOM traversal
+    document.getElementById('truvala-compare-grid').addEventListener('click', e => {
+      const wrap = e.target.closest('.truvala-compare-col-wrap');
+      if (!wrap) return;
+      const idx  = parseInt(wrap.dataset.homeIndex);
+      const home = pinnedHomes[idx];
+      const col  = wrap.querySelector('.truvala-compare-col');
+
+      // Floating tab → flip back
+      if (e.target.closest('.truvala-col-tab')) { flipBackFromRisk(wrap); return; }
+
+      // Full risk → flip column
+      if (e.target.closest('.truvala-full-risk-btn')) { flipToRisk(wrap, home); return; }
+
+      // Show more (risk drawer show/hide)
+      const showMore = e.target.closest('.truvala-module-show-more');
+      if (showMore) {
+        const t = document.getElementById(showMore.dataset.target);
+        if (t) { const open = t.style.display !== 'none'; t.style.display = open ? 'none' : ''; showMore.textContent = open ? 'Show more ›' : 'Show less ‹'; }
+        return;
+      }
+
+      // Costs toggle (relative — no global ID lookup)
+      if (e.target.closest('[id="truvala-costs-btn"]')) {
+        const btn  = e.target.closest('[id="truvala-costs-btn"]');
+        const body = btn.closest('.truvala-compare-col-body');
+        const existing = body.querySelector('.truvala-compare-costs-section');
+        if (existing) { existing.remove(); return; }
+        if (!home?.report?.monthly_costs) return;
+        const section = document.createElement('div');
+        section.className = 'truvala-compare-costs-section';
+        section.innerHTML = buildCostsHTML(home.report.monthly_costs, home.report.ecosolar);
+        btn.after(section);
+        return;
+      }
+
+      // Score breakdown toggle (relative)
+      if (e.target.closest('.truvala-breakdown-toggle')) {
+        const toggle  = e.target.closest('.truvala-breakdown-toggle');
+        const body    = toggle.nextElementSibling;
+        const chevron = toggle.querySelector('.truvala-breakdown-main-chevron');
+        if (!body) return;
+        const open = body.style.display !== 'none';
+        body.style.display = open ? 'none' : '';
+        if (chevron) chevron.style.transform = open ? '' : 'rotate(180deg)';
+        toggle.style.borderRadius = open ? '0 0 16px 16px' : '0';
+        return;
+      }
+
+      // Collapsible list expand
+      const expandBtn = e.target.closest('.truvala-expand-btn[data-target]');
+      if (expandBtn) {
+        const t = document.getElementById(expandBtn.dataset.target);
+        if (t) { const open = t.style.display !== 'none'; t.style.display = open ? 'none' : ''; expandBtn.textContent = open ? `+ ${expandBtn.dataset.more} more ›` : 'Show less'; }
+        return;
+      }
+
+      // Eco details toggle (relative)
+      if (e.target.closest('[id="truvala-eco-details-toggle"]')) {
+        const btn     = e.target.closest('[id="truvala-eco-details-toggle"]');
+        const details = btn.nextElementSibling;
+        if (details) {
+          const open = details.style.display !== 'none';
+          details.style.display = open ? 'none' : 'flex';
+          if (!open) { details.style.flexDirection = 'column'; details.style.gap = '6px'; }
+          btn.querySelector('span:last-child').textContent  = open ? '›' : '˅';
+          btn.querySelector('span:first-child').textContent = open ? 'View financing details' : 'Hide financing details';
+        }
+        return;
+      }
+    });
+
+    // Compare chat send + enter
+    document.getElementById('truvala-compare-send').addEventListener('click', () => {
+      sendCompareChatMessage(document.getElementById('truvala-compare-input').value);
+    });
+    document.getElementById('truvala-compare-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendCompareChatMessage(e.target.value); }
+    });
+
+    // Compare chat suggestion chips
+    document.getElementById('truvala-compare-chat-panel').addEventListener('click', e => {
+      const chip = e.target.closest('.truvala-suggestion-chip');
+      if (chip) sendCompareChatMessage(chip.textContent);
     });
 
     // Mini bubble reopens the panel
@@ -1222,16 +1841,16 @@
     // Risk drawer close
     document.getElementById('truvala-risk-drawer-close').addEventListener('click', closeRiskDrawer);
 
-    // Risk drawer — module toggles (modules pane) + suggestion chips (chat pane)
+    // Risk drawer — show more + suggestion chips
     document.getElementById('truvala-risk-drawer').addEventListener('click', (e) => {
-      const riskBtn = e.target.closest('.truvala-risk-module-btn');
-      if (riskBtn) {
-        const mod    = riskBtn.closest('.truvala-risk-module');
-        const body   = mod.querySelector('.truvala-risk-module-body');
-        const chevron = riskBtn.querySelector('.truvala-risk-chevron');
-        const open   = body.style.display !== 'none';
-        body.style.display = open ? 'none' : '';
-        if (chevron) chevron.style.transform = open ? '' : 'rotate(90deg)';
+      const showMore = e.target.closest('.truvala-module-show-more');
+      if (showMore) {
+        const target = document.getElementById(showMore.dataset.target);
+        if (target) {
+          const open = target.style.display !== 'none';
+          target.style.display = open ? 'none' : '';
+          showMore.textContent = open ? 'Show more ›' : 'Show less ‹';
+        }
         return;
       }
       const chip = e.target.closest('.truvala-suggestion-chip');
@@ -1265,7 +1884,6 @@
         document.getElementById('truvala-panel-body').prepend(section);
       }
     };
-    document.getElementById('truvala-costs-toggle').addEventListener('click', toggleCosts);
 
     // Popover close button
     document.getElementById('truvala-popover-close').addEventListener('click', closeFieldPopover);
@@ -1439,6 +2057,7 @@
   function init() {
     buildDOM();
     bindEvents();
+    loadPinnedHomes();
   }
 
   if (document.readyState === 'loading') {

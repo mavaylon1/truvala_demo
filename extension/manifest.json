@@ -3,8 +3,14 @@
   "name": "Truvala",
   "version": "0.1.0",
   "description": "AI homebuying decision overlay",
-  "permissions": [],
-  "host_permissions": ["http://localhost:8000/*"],
+  "permissions": ["storage", "tabs"],
+  "host_permissions": [
+    "<all_urls>",
+    "http://localhost:8000/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
   "content_scripts": [
     {
       "matches": [

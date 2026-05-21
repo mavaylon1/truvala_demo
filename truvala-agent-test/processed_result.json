@@ -1,0 +1,300 @@
+{
+  "score": 80,
+  "risk": "High",
+  "capex_estimate": "$40,000\u2013$80,000 based on likely roof, HVAC, electrical, plumbing replacements",
+  "summary": "This manufactured home scores an 80 for your preferences, excelling in price and bedroom count but less ideal in property type. The top risk involves multiple ageing home systems\u2014roof, HVAC, electrical panel, and plumbing\u2014all likely near or past typical lifespan, demanding significant verification. Located in Newport Beach with a land lease fee of $3,300/month, it presents a waterfront lifestyle opportunity at a comparatively affordable price.",
+  "warnings": [
+    "Pre-1978 lead paint risk applies",
+    "Possible asbestos-era materials (vermiculite insulation, vinyl tiles)",
+    "Aluminum wiring era\u2014verify electrical panel and wiring type",
+    "Roof is approximately 65 years old; replacement likely needed",
+    "HVAC and water heater likely need replacement due to age"
+  ],
+  "positives": [
+    "Price fully meets your maximum budget preference",
+    "Meets bedroom and bathroom minimum requirements",
+    "Single-story floor plan matches your preference",
+    "Large private lot in desirable Newport Beach location"
+  ],
+  "questions": [
+    "Is the wiring copper or aluminum?",
+    "Has the electrical panel been upgraded?",
+    "What type of plumbing is installed?",
+    "When was the roof last replaced? What material is it?",
+    "When was the HVAC system last serviced or replaced?"
+  ],
+  "field_scores": {
+    "price": {
+      "label": "Price",
+      "utility": 1.0,
+      "explanation": "Property is at or below the buyer's max budget."
+    },
+    "bedrooms": {
+      "label": "Bedrooms",
+      "utility": 1.0,
+      "explanation": "Property meets or exceeds the bedroom requirement."
+    },
+    "bathrooms": {
+      "label": "Bathrooms",
+      "utility": 1.0,
+      "explanation": "Property meets or exceeds the bathroom requirement."
+    },
+    "property_type": {
+      "label": "Property Type",
+      "utility": 0.15,
+      "explanation": "Property type does not fit the buyer's preference well."
+    },
+    "distance": {
+      "label": "Distance",
+      "utility": 0.5,
+      "explanation": "Distance is missing, so a neutral utility was used."
+    },
+    "floors": {
+      "label": "Floors",
+      "utility": 1.0,
+      "explanation": "Floor layout matches the buyer's preference."
+    },
+    "schools": {
+      "label": "Schools",
+      "utility": 0.5,
+      "explanation": "School rating is missing, so a neutral utility was used."
+    }
+  },
+  "risk_report": {
+    "age_era": {
+      "section": "Age & Era Risk",
+      "observed_facts": [
+        "Built in 1961",
+        "Home is approximately 65 years old",
+        "Property type: Manufactured In Park"
+      ],
+      "computed_risk_signals": [
+        "Pre-1978 lead paint risk applies",
+        "Pre-1980 asbestos-era materials possible (vermiculite insulation, vinyl floor tiles)",
+        "Aluminum wiring peak era (1965\u20131973) \u2014 verify electrical panel and outlets",
+        "Polybutylene plumbing may be present in late-1970s construction"
+      ],
+      "inferred_concerns": [
+        "Aluminum wiring era \u2014 if present and unaddressed, this is both an insurance and a safety concern",
+        "Systems may be original and approaching or past typical lifespan"
+      ],
+      "missing_information": [
+        "Electrical wiring type (aluminum vs copper)",
+        "Electrical panel age and upgrade history",
+        "Plumbing material",
+        "Permit history for updates",
+        "Asbestos assessment for attic insulation and floor tiles"
+      ],
+      "buyer_questions": [
+        "Is the wiring copper or aluminum?",
+        "Has the electrical panel been upgraded?",
+        "What type of plumbing is installed?",
+        "Has the attic insulation been tested for asbestos?"
+      ]
+    },
+    "component_lifespan": {
+      "section": "Component Lifespan Risk",
+      "observed_facts": [
+        "Built in 1961"
+      ],
+      "computed_risk_signals": [
+        "Roof: estimated age 65 yrs \u2014 typical lifespan 20\u201330 yrs; replacement verification recommended",
+        "HVAC: estimated age 65 yrs \u2014 typical lifespan 15\u201320 yrs; replacement verification recommended",
+        "Water Heater: estimated age 65 yrs \u2014 typical lifespan 10\u201315 yrs; replacement verification recommended",
+        "Electrical Panel: estimated age 65 yrs \u2014 typical lifespan 30\u201340 yrs; replacement verification recommended",
+        "Windows: estimated age 65 yrs \u2014 typical lifespan 20\u201325 yrs; replacement verification recommended",
+        "Plumbing: estimated age 65 yrs \u2014 typical lifespan 40\u201370 yrs; replacement verification recommended"
+      ],
+      "inferred_concerns": [
+        "If flagged systems have not been recently replaced, buyer may face near-term replacement costs",
+        "The risk is not that these systems are confirmed bad \u2014 it is that their actual ages and conditions are unverified"
+      ],
+      "missing_information": [
+        "Roof age or replacement date",
+        "HVAC age or replacement date",
+        "Water heater age",
+        "Electrical panel age or upgrade history",
+        "Window age and type (single vs double-pane)",
+        "Plumbing material and condition"
+      ],
+      "buyer_questions": [
+        "When was the roof last replaced? What material is it?",
+        "When was the HVAC system last replaced or professionally serviced?",
+        "How old is the water heater? Is it a tank or tankless unit?",
+        "Has the electrical panel been upgraded? What is the amperage, and what brand is it?",
+        "What type of windows are installed? When were they last replaced?",
+        "What type of plumbing is installed? Has it been replaced from the original?"
+      ]
+    },
+    "listing_language": {
+      "section": "Listing Language Red Flags",
+      "observed_facts": [
+        "No high-risk language patterns detected in listing description"
+      ],
+      "computed_risk_signals": [],
+      "inferred_concerns": [],
+      "missing_information": [],
+      "buyer_questions": []
+    },
+    "verification_checklist": {
+      "section": "Missing Information & Verification Checklist",
+      "observed_facts": [
+        "11 key facts were not confirmed in the listing or available data"
+      ],
+      "computed_risk_signals": [
+        "5 high-priority items require verification before making an offer",
+        "6 medium-priority items should be clarified before or during inspection"
+      ],
+      "inferred_concerns": [
+        "Buyer cannot accurately estimate near-term cost exposure without confirming these items",
+        "Inspection and due diligence contingencies are strongly recommended given the number of unconfirmed facts"
+      ],
+      "missing_information": [
+        "Electrical wiring type (aluminum vs copper)",
+        "Roof age or replacement date",
+        "HVAC age or replacement date",
+        "Electrical panel age or upgrade history",
+        "Plumbing material and condition",
+        "Electrical panel age and upgrade history",
+        "Plumbing material",
+        "Permit history for updates",
+        "Asbestos assessment for attic insulation and floor tiles",
+        "Water heater age",
+        "Window age and type (single vs double-pane)"
+      ],
+      "buyer_questions": [
+        "Is the wiring copper or aluminum?",
+        "Has the electrical panel been upgraded?",
+        "What type of plumbing is installed?",
+        "Has the attic insulation been tested for asbestos?",
+        "When was the roof last replaced? What material is it?",
+        "When was the HVAC system last replaced or professionally serviced?",
+        "How old is the water heater? Is it a tank or tankless unit?",
+        "Has the electrical panel been upgraded? What is the amperage, and what brand is it?"
+      ],
+      "checklist": [
+        {
+          "item": "Electrical wiring type (aluminum vs copper)",
+          "why_it_matters": "Aluminum wiring requires specific remediation to be safe and insurable",
+          "rough_estimate": "$3,000\u2013$15,000 depending on scope",
+          "ask": "Seller or licensed electrician",
+          "priority": "High"
+        },
+        {
+          "item": "Roof age or replacement date",
+          "why_it_matters": "Roof replacement is one of the largest near-term costs a buyer can face",
+          "rough_estimate": "$15,000\u2013$40,000",
+          "ask": "Seller or inspector",
+          "priority": "High"
+        },
+        {
+          "item": "HVAC age or replacement date",
+          "why_it_matters": "Older HVAC systems can fail with little warning and are expensive to replace",
+          "rough_estimate": "$8,000\u2013$20,000",
+          "ask": "Seller, inspector, or HVAC contractor",
+          "priority": "High"
+        },
+        {
+          "item": "Electrical panel age or upgrade history",
+          "why_it_matters": "Older panels can be a fire hazard and may make the home uninsurable",
+          "rough_estimate": "$3,000\u2013$8,000",
+          "ask": "Seller, inspector, or licensed electrician",
+          "priority": "High"
+        },
+        {
+          "item": "Plumbing material and condition",
+          "why_it_matters": "Polybutylene or galvanized pipe can fail and affect insurability",
+          "rough_estimate": "$5,000\u2013$20,000 for full repipe",
+          "ask": "Seller, inspector, or plumber",
+          "priority": "High"
+        },
+        {
+          "item": "Electrical panel age and upgrade history",
+          "why_it_matters": "Required to fully assess property risk",
+          "rough_estimate": "Unknown",
+          "ask": "Seller, agent, or inspector",
+          "priority": "Medium"
+        },
+        {
+          "item": "Plumbing material",
+          "why_it_matters": "Required to fully assess property risk",
+          "rough_estimate": "Unknown",
+          "ask": "Seller, agent, or inspector",
+          "priority": "Medium"
+        },
+        {
+          "item": "Permit history for updates",
+          "why_it_matters": "Required to fully assess property risk",
+          "rough_estimate": "Unknown",
+          "ask": "Seller, agent, or inspector",
+          "priority": "Medium"
+        },
+        {
+          "item": "Asbestos assessment for attic insulation and floor tiles",
+          "why_it_matters": "Required to fully assess property risk",
+          "rough_estimate": "Unknown",
+          "ask": "Seller, agent, or inspector",
+          "priority": "Medium"
+        },
+        {
+          "item": "Water heater age",
+          "why_it_matters": "Water heaters near end of lifespan fail unexpectedly",
+          "rough_estimate": "$1,500\u2013$5,000",
+          "ask": "Seller or inspector",
+          "priority": "Medium"
+        },
+        {
+          "item": "Window age and type (single vs double-pane)",
+          "why_it_matters": "Single-pane or aging windows significantly affect energy costs and comfort",
+          "rough_estimate": "$8,000\u2013$25,000 for full replacement",
+          "ask": "Seller or inspector",
+          "priority": "Medium"
+        }
+      ]
+    }
+  },
+  "listing": {
+    "address": "94 Yorktown",
+    "city": "Newport Beach",
+    "state": "CA",
+    "zip": 92660,
+    "price": 379000,
+    "beds": 2,
+    "baths": 2,
+    "sqft": 1029,
+    "year_built": 1961,
+    "property_type": "Manufactured In Park",
+    "property_subtype": "Manufactured Home",
+    "hoa_fee_monthly": 0,
+    "land_lease_monthly": 3300,
+    "listing_status": "Active",
+    "days_on_market": 180,
+    "description": "MOTIVATED MOTIVATED MOTIVATED Bring all offers....There is a DEAL to be made here !!!! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n\nLive the Newport Beach \"waterfront\" lifestyle at an exceptional value in the all-ages community of Bayside Village. This move-in-ready 2-bedroom, 2-bath beach cottage offers approx. 1,029 sq ft of bright, open living space and sits on one of the largest and most private lots in the community\u2014an increasingly rare feature in Newport Beach real estate.This updated home features large windows, newer flooring, crown molding, and a cozy fireplace. The remodeled kitchen includes quartz countertops, shaker cabinets, and a built-in beverage/wine fridge. A flexible second bedroom with custom barn doors functions perfectly as a guest room, home office, or bonus living space. The primary suite offers custom closets and a remodeled bathroom with walk-in shower.Enjoy true indoor-outdoor coastal living with a private yard ideal for entertaining, relaxing, or dining al fresco and two storage sheds. Two kayaks are included for immediate enjoyment.Bayside Village amenities include a private beach, kayak launch, Back Bay access, scenic bike trails, two resort-style clubhouses, pools, spas, fitness rooms, BBQ areas, fire pits, and a fenced dog park. Located just off PCH and minutes to Balboa Island, Fashion Island shopping, world-class beaches, dining, John Wayne Airport, Newport Dunes, and Back Bay parks.\nLand lease is $3,300/month and includes water, trash, and amenities. Why rent when you can own your place in Newport Beach?\nSee \"360\" tour above.",
+    "floors": "single_story"
+  },
+  "monthly_costs": {
+    "mortgage": 2015,
+    "property_tax": 243,
+    "hoa": 0,
+    "hoa_note": null,
+    "land_lease": 3300,
+    "land_lease_note": "Land lease included",
+    "utilities": 185,
+    "total": 5743,
+    "assumptions": {
+      "down_payment_pct": 0.2,
+      "interest_rate": 0.0699,
+      "term_years": 30
+    }
+  },
+  "ecosolar": {
+    "logo_url": "https://ecosolarusa.com/wp-content/uploads/2023/06/EcoSolar-USA-logo-border.png",
+    "system_size_kw": 3.1,
+    "system_total_cost": 8990,
+    "panel_monthly_payment": 59,
+    "monthly_electric_savings": 144,
+    "net_monthly_impact": -85,
+    "estimated_payoff_years": 5.2,
+    "note": "Estimates based on regional solar averages for this zip code. Contact EcoSolar USA for a precise, no-obligation quote."
+  }
+}

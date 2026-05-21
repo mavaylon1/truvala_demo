@@ -54,7 +54,9 @@ Rules:
 - Keep land_lease_monthly separate from hoa_fee_monthly
 - Preserve manufactured/mobile-home-in-park property types exactly
 - floors: extract as "single_story", "two_story", "three_plus_story", or null
-- description: include the full listing description and agent remarks"""
+- description: include the full listing description and agent remarks
+- schools: array of all schools listed, each as {"name": "...", "type": "elementary|middle|high|district", "rating": <int or null>}
+  Extract rating from patterns like "9/10" near a school name — use the number before the slash. Include all schools found, not just one."""
 
 LISTING_SCHEMA = {
     "address": None, "city": None, "state": None, "zip": None,
@@ -63,6 +65,7 @@ LISTING_SCHEMA = {
     "hoa_fee_monthly": None, "land_lease_monthly": None,
     "listing_status": None, "days_on_market": None,
     "description": None, "floors": None,
+    "schools": [],
 }
 
 # ─── Report generation ────────────────────────────────────────────────────────
@@ -178,6 +181,47 @@ Return strict JSON only, no markdown:
 """
 
 
+COMPARE_CHAT_SYSTEM = """\
+You are Truvala, a friendly AI homebuying assistant. The buyer has {n} listings pinned side by side.
+
+Buyer preferences: {prefs_json}
+
+{listings_block}
+
+Guidelines:
+- Be conversational, warm, and direct — you are on the buyer's side
+- Ground every answer in the listing data above — never invent facts
+- Keep responses concise: 2–4 sentences for most questions
+- When comparing, refer to listings by their address (shortened is fine) and be direct about tradeoffs\
+"""
+
+COMPARE_INIT_PROMPT = """\
+The buyer is comparing {n} listings side by side. Write a brief opening message (2 sentences max) \
+that calls out the single most important tradeoff or contrast across these specific listings — \
+the insight that would most influence a real buying decision. Be concrete, not generic.
+
+Then provide exactly 3 suggested follow-up questions specific to these listings.
+
+Return strict JSON only, no markdown:
+{{"message": "...", "suggested_questions": ["...", "...", "..."]}}\
+"""
+
+
+def _format_compare_listing(i: int, l: dict) -> str:
+    rr = l.get("risk_report", {})
+    signals = []
+    for module in ["age_era", "component_lifespan", "listing_language"]:
+        signals.extend(rr.get(module, {}).get("computed_risk_signals", [])[:2])
+    facts = json.dumps(l.get("listing", {}), ensure_ascii=False)[:400]
+    return (
+        f"Listing {i + 1} — {l.get('address', 'Unknown')}\n"
+        f"  Score: {l.get('score', 0)}/100 | Risk: {l.get('risk', '?')} | "
+        f"Capex: {l.get('capex_estimate', '?')}\n"
+        f"  Facts: {facts}\n"
+        f"  Top risk signals: {json.dumps(signals[:4], ensure_ascii=False)}"
+    )
+
+
 class ChatMessage(BaseModel):
     role: str
     content: str
@@ -190,23 +234,38 @@ class ChatRequest(BaseModel):
     preferences: dict
     score: int = 0
     capex_estimate: str = ""
+    compare_listings: list[dict] = []
 
 
 @app.post("/chat")
 async def chat(req: ChatRequest):
-    system = CHAT_SYSTEM.format(
-        listing_json=json.dumps(req.listing, ensure_ascii=False),
-        score=req.score,
-        capex=req.capex_estimate,
-        prefs_json=json.dumps(req.preferences, ensure_ascii=False),
-        risk_json=json.dumps(req.risk_report, ensure_ascii=False),
-    )
+    is_compare = len(req.compare_listings) > 0
+    is_init    = len(req.messages) == 0
 
-    is_init = len(req.messages) == 0
+    if is_compare:
+        n = len(req.compare_listings)
+        listings_block = "\n\n".join(
+            _format_compare_listing(i, l) for i, l in enumerate(req.compare_listings)
+        )
+        system = COMPARE_CHAT_SYSTEM.format(
+            n=n,
+            prefs_json=json.dumps(req.preferences, ensure_ascii=False),
+            listings_block=listings_block,
+        )
+        init_prompt = COMPARE_INIT_PROMPT.format(n=n)
+    else:
+        system = CHAT_SYSTEM.format(
+            listing_json=json.dumps(req.listing, ensure_ascii=False),
+            score=req.score,
+            capex=req.capex_estimate,
+            prefs_json=json.dumps(req.preferences, ensure_ascii=False),
+            risk_json=json.dumps(req.risk_report, ensure_ascii=False),
+        )
+        init_prompt = CHAT_INIT_PROMPT
 
     input_messages = [{"role": "system", "content": system}]
     if is_init:
-        input_messages.append({"role": "user", "content": CHAT_INIT_PROMPT})
+        input_messages.append({"role": "user", "content": init_prompt})
     else:
         input_messages.extend(
             [{"role": m.role, "content": m.content} for m in req.messages]
@@ -223,7 +282,7 @@ def extract_listing(raw_scrape: dict) -> dict:
     compact = {
         "url": raw_scrape.get("url"),
         "page_title": raw_scrape.get("page_title"),
-        "visible_text": (raw_scrape.get("visible_text") or "")[:12000],
+        "visible_text": (raw_scrape.get("visible_text") or "")[:25000],
         "meta": raw_scrape.get("meta", {}),
     }
     response = client.responses.create(
