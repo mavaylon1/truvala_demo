@@ -917,15 +917,18 @@
     const tier        = scoreTier(report.score);
     const summaryLine = buildScoreSummaryLine(report.field_scores);
 
-    // Compute top win and top drag for the plain-text summary
+    // Top win: highest importance-weighted utility, no threshold
+    // Top drag: highest importance-weighted gap, different field from top win
     const scoredFields = Object.entries(report.field_scores).map(([key, f]) => {
       const prefKey    = FIELD_PREF_MAP[key];
       const importance = prefKey ? (currentPrefs[prefKey]?.importance ?? 3) : 3;
       const utility    = f.utility ?? 0.5;
-      return { ...f, utility, winScore: utility * importance, dragScore: (1 - utility) * importance };
+      return { ...f, key, utility, winScore: utility * importance, dragScore: (1 - utility) * importance };
     });
-    const topWins  = [...scoredFields].filter(f => f.utility >= 0.75).sort((a, b) => b.winScore  - a.winScore).slice(0, 1);
-    const topDrags = [...scoredFields].filter(f => f.utility <= 0.35).sort((a, b) => b.dragScore - a.dragScore).slice(0, 1);
+    const [topWin]  = [...scoredFields].sort((a, b) => b.winScore - a.winScore);
+    const [topDrag] = [...scoredFields]
+      .filter(f => !topWin || f.key !== topWin.key)
+      .sort((a, b) => b.dragScore - a.dragScore);
 
     const fieldRows = Object.entries(report.field_scores).map(([key, f]) => {
       const pct    = Math.round(f.utility * 100);
@@ -968,8 +971,8 @@
           <div class="truvala-score-meta">
             <div class="truvala-score-label">Buyer Fit Score</div>
             <div class="truvala-score-tier" style="color:${tier.color}">${tier.label}</div>
-            ${topWins.map(f  => `<div class="truvala-summary-line truvala-summary-positive"><span class="truvala-sum-icon">✓</span><span>${f.explanation}</span></div>`).join('')}
-            ${topDrags.map(f => `<div class="truvala-summary-line truvala-summary-concern"><span class="truvala-sum-icon">!</span><span>${f.explanation}</span></div>`).join('')}
+            ${topWin  ? `<div class="truvala-summary-line truvala-summary-positive"><span class="truvala-sum-icon">✓</span><span><strong>${topWin.label}</strong> — ${topWin.explanation}</span></div>`  : ''}
+            ${topDrag ? `<div class="truvala-summary-line truvala-summary-concern"><span class="truvala-sum-icon">!</span><span><strong>${topDrag.label}</strong> — ${topDrag.explanation}</span></div>` : ''}
           </div>
         </div>
         <div class="truvala-field-rows" id="truvala-breakdown-grid">
