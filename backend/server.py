@@ -55,8 +55,10 @@ Rules:
 - Preserve manufactured/mobile-home-in-park property types exactly
 - floors: extract as "single_story", "two_story", "three_plus_story", or null
 - description: include the full listing description and agent remarks
-- schools: array of all schools listed, each as {"name": "...", "type": "elementary|middle|high|district", "rating": <int or null>}
-  Extract rating from patterns like "9/10" near a school name — use the number before the slash. Include all schools found, not just one."""
+- schools: extract from the assigned/nearby schools section only — not from neighborhood text or comparable home listings.
+  Return an array where each entry is {"name": "...", "type": "elementary|middle|high|district", "rating": <int or null>}
+  Rating rules: look for patterns like "9/10" or "7\n/10" — use the integer before the slash. The rating may appear BEFORE or AFTER the school name depending on the site (Zillow shows rating first; Trulia and Redfin show name first). Do not guess — use null if no rating is clearly present.
+  Type rules: infer from grade ranges in the text — K-5 or K-6 = elementary, 6-8 or 7-8 = middle, 9-12 = high. A school with grades 7-12 or 6-12 is "high" (not middle) — it is a combined school, classify by its highest grade. MLS fields like "Jr High / Middle School: [name]" are district assignments, not separate schools — only extract schools that have an explicit rating in the GreatSchools or school rating section. If it is a school district name, use "district". Include all schools found."""
 
 LISTING_SCHEMA = {
     "address": None, "city": None, "state": None, "zip": None,

@@ -467,6 +467,79 @@
   padding: 0 2px 10px 0;
 }
 
+/* ─── School breakdown detail ────────────────────────────────────────────────── */
+
+.truvala-school-composite {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background: rgba(241, 245, 249, 0.8);
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.truvala-school-composite-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.truvala-school-composite-val {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.truvala-school-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 2px;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.5);
+}
+
+.truvala-school-card:last-of-type { border-bottom: none; }
+
+.truvala-school-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.truvala-school-card-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.truvala-school-card-type {
+  font-size: 11px;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 1px;
+}
+
+.truvala-school-card-rating {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-left: 12px;
+}
+
+.truvala-school-weight-note {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 8px;
+  font-style: italic;
+}
+
 /* ─── Score text summary ─────────────────────────────────────────────────────── */
 
 .truvala-score-text-summary {

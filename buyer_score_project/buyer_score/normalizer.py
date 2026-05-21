@@ -1,5 +1,58 @@
 from .helpers import normalize_key
 
+# Internal weights for school level composite — buyer only tunes overall school importance
+_SCHOOL_LEVEL_WEIGHTS = {"elementary": 0.50, "high": 0.30, "middle": 0.20}
+
+
+def derive_school_rating(schools):
+    """
+    Weighted average of assigned/nearby school ratings.
+    Weights: elementary 50%, high 30%, middle 20%.
+    Schools without a rating are skipped.
+    Missing levels have their weight redistributed among present levels.
+    """
+    if not schools:
+        return None
+
+    by_level = {}
+    seen_names = set()
+    for school in schools:
+        raw_type = (school.get("type") or "").lower().strip()
+        rating   = school.get("rating")
+        name     = (school.get("name") or "").lower().strip()
+        if rating is None:
+            continue
+        if "elementary" in raw_type:
+            level = "elementary"
+        elif "middle" in raw_type or "junior" in raw_type:
+            level = "middle"
+        elif "high" in raw_type:
+            level = "high"
+        else:
+            continue  # district or unknown — skip
+
+        # Deduplicate: same school name appearing under multiple levels
+        # (e.g. a 7-12 school extracted as both middle and high)
+        if name and name in seen_names:
+            continue
+        if name:
+            seen_names.add(name)
+
+        by_level.setdefault(level, []).append(float(rating))
+
+    if not by_level:
+        return None
+
+    # Average within each level, then weight across levels
+    level_avg = {lvl: sum(ratings) / len(ratings) for lvl, ratings in by_level.items()}
+    present   = {lvl: _SCHOOL_LEVEL_WEIGHTS[lvl] for lvl in level_avg if lvl in _SCHOOL_LEVEL_WEIGHTS}
+    total_w   = sum(present.values())
+    if total_w == 0:
+        return None
+
+    composite = sum(level_avg[lvl] * w for lvl, w in present.items()) / total_w
+    return round(composite, 1)
+
 
 def normalize_listing(raw_listing):
     """
@@ -32,7 +85,7 @@ def normalize_listing(raw_listing):
         # They can be filled later by geocoding, routing, school API, etc.
         "distance_miles": raw_listing.get("distance_miles"),
         "floors": normalize_key(raw_listing.get("floors")),
-        "school_rating": raw_listing.get("school_rating"),
+        "school_rating": derive_school_rating(raw_listing.get("schools") or []),
         "school_district": raw_listing.get("school_district"),
 
         # Not part of Buyer Fit v1 yet, but useful for explanations/debugging.

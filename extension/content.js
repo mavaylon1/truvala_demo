@@ -792,6 +792,59 @@
       </div>`;
   }
 
+  function buildSchoolsDetail(schools, fieldScore) {
+    const WEIGHTS    = { elementary: 0.50, high: 0.30, middle: 0.20 };
+    const TYPE_LABEL = { elementary: 'Elementary', middle: 'Middle', high: 'High School' };
+
+    const classify = t => {
+      t = (t || '').toLowerCase();
+      if (t.includes('elementary')) return 'elementary';
+      if (t.includes('middle') || t.includes('junior')) return 'middle';
+      if (t.includes('high')) return 'high';
+      return null;
+    };
+
+    // Weighted composite
+    const byLevel = {};
+    schools.forEach(s => {
+      const lvl = classify(s.type);
+      if (lvl && s.rating != null) (byLevel[lvl] = byLevel[lvl] || []).push(s.rating);
+    });
+    const levelAvg     = Object.fromEntries(Object.entries(byLevel).map(([l, rs]) => [l, rs.reduce((a,b)=>a+b,0)/rs.length]));
+    const present      = Object.fromEntries(Object.entries(WEIGHTS).filter(([l]) => l in levelAvg));
+    const totalW       = Object.values(present).reduce((a,b)=>a+b,0);
+    const composite    = totalW > 0 ? Object.entries(present).reduce((s,[l,w])=>s+levelAvg[l]*w,0)/totalW : null;
+    const ratingColor  = v => v >= 8 ? '#10b981' : v >= 5 ? '#f59e0b' : '#ef4444';
+
+    const compositeHTML = composite != null ? `
+      <div class="truvala-school-composite">
+        <span class="truvala-school-composite-label">Composite score</span>
+        <span class="truvala-school-composite-val" style="color:${ratingColor(composite)}">${composite.toFixed(1)}<span style="font-size:11px;opacity:0.7">/10</span></span>
+      </div>` : '';
+
+    const cards = schools
+      .filter(s => classify(s.type))
+      .map(s => {
+        const lvl   = classify(s.type);
+        const label = TYPE_LABEL[lvl];
+        const hasRating = s.rating != null;
+        return `
+          <div class="truvala-school-card">
+            <div class="truvala-school-card-info">
+              <div class="truvala-school-card-name">${escapeHTML(s.name || 'Unknown')}</div>
+              <div class="truvala-school-card-type">${label}</div>
+            </div>
+            <div class="truvala-school-card-rating" style="color:${hasRating ? ratingColor(s.rating) : '#94a3b8'}">
+              ${hasRating ? `${s.rating}<span style="font-size:10px;opacity:0.7">/10</span>` : '—'}
+            </div>
+          </div>`;
+      }).join('');
+
+    const note = `<div class="truvala-school-weight-note">Weighted: elementary 50% · high school 30% · middle school 20%</div>`;
+
+    return `${compositeHTML}${cards}${note}`;
+  }
+
   function buildReportHTML(report) {
     const tier        = scoreTier(report.score);
     const summaryLine = buildScoreSummaryLine(report.field_scores);
@@ -807,8 +860,11 @@
     const topDrags = [...scoredFields].filter(f => f.utility <= 0.35).sort((a, b) => b.dragScore - a.dragScore).slice(0, 1);
 
     const fieldRows = Object.entries(report.field_scores).map(([key, f]) => {
-      const pct   = Math.round(f.utility * 100);
-      const color = fieldBarColor(f.utility);
+      const pct    = Math.round(f.utility * 100);
+      const color  = fieldBarColor(f.utility);
+      const detail = key === 'schools' && report.listing?.schools?.length
+        ? buildSchoolsDetail(report.listing.schools, f)
+        : f.explanation;
       return `
         <div class="truvala-field-row">
           <div class="truvala-field-row-main">
@@ -819,7 +875,7 @@
             <span class="truvala-field-row-pct" style="color:${color}">${pct}%</span>
             <span class="truvala-field-row-chevron">›</span>
           </div>
-          <div class="truvala-field-row-detail">${f.explanation}</div>
+          <div class="truvala-field-row-detail">${detail}</div>
         </div>`;
     }).join('');
 
@@ -1821,8 +1877,8 @@
         const row     = main.closest('.truvala-field-row');
         const detail  = row.querySelector('.truvala-field-row-detail');
         const chevron = main.querySelector('.truvala-field-row-chevron');
-        const open    = detail.style.display !== 'none';
-        detail.style.display = open ? 'none' : '';
+        const open    = getComputedStyle(detail).display !== 'none';
+        detail.style.display = open ? 'none' : 'block';
         if (chevron) chevron.style.transform = open ? '' : 'rotate(90deg)';
         row.classList.toggle('truvala-field-row--open', !open);
         return;
@@ -1970,8 +2026,8 @@
         const row     = fieldRowMain.closest('.truvala-field-row');
         const detail  = row.querySelector('.truvala-field-row-detail');
         const chevron = fieldRowMain.querySelector('.truvala-field-row-chevron');
-        const open    = detail.style.display !== 'none';
-        detail.style.display = open ? 'none' : '';
+        const open    = getComputedStyle(detail).display !== 'none';
+        detail.style.display = open ? 'none' : 'block';
         if (chevron) chevron.style.transform = open ? '' : 'rotate(90deg)';
         row.classList.toggle('truvala-field-row--open', !open);
         return;
