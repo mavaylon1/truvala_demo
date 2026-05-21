@@ -125,7 +125,7 @@ def compatibility_matrix_utility(actual_value, desired_value, cfg, field_label):
     return float(utility), explanation
 
 
-def distance_utility(distance_miles, max_distance_miles, cfg):
+def distance_utility(distance_miles, max_distance_miles, cfg, reference_city=None):
     """
     Curve-based utility.
 
@@ -134,17 +134,21 @@ def distance_utility(distance_miles, max_distance_miles, cfg):
     """
 
     if distance_miles is None:
-        return cfg["missing_utility"], "Distance is missing, so a neutral utility was used."
+        return cfg["missing_utility"], "No reference city set — add one in preferences to score distance."
+
+    ref     = f" from {reference_city}" if reference_city else ""
+    dist_str = f"{distance_miles:.1f} mi{ref}"
+    target_str = f"{int(max_distance_miles)}-mile target"
 
     if distance_miles <= max_distance_miles:
-        return 1.00, "Property is within the buyer's target distance."
+        return 1.00, f"{dist_str} — within the {target_str}."
 
     over_pct = (distance_miles - max_distance_miles) / max_distance_miles
     soft = cfg["soft_over_target_pct"]
     hard = cfg["hard_over_target_pct"]
 
     if over_pct >= hard:
-        return cfg["utility_at_hard_limit"], "Property is far outside the buyer's target distance."
+        return cfg["utility_at_hard_limit"], f"{dist_str} — far outside the {target_str}."
 
     if over_pct <= soft:
         utility = linear_interpolate(
@@ -154,7 +158,7 @@ def distance_utility(distance_miles, max_distance_miles, cfg):
             soft,
             cfg["utility_at_soft_limit"],
         )
-        return clamp(utility), "Property is slightly outside the buyer's target distance."
+        return clamp(utility), f"{dist_str} — slightly outside the {target_str}."
 
     utility = linear_interpolate(
         over_pct,
@@ -164,7 +168,7 @@ def distance_utility(distance_miles, max_distance_miles, cfg):
         cfg["utility_at_hard_limit"],
     )
 
-    return clamp(utility), "Property is meaningfully outside the buyer's target distance."
+    return clamp(utility), f"{dist_str} — outside the {target_str}."
 
 
 def schools_utility(listing, preference, cfg):

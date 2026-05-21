@@ -86,18 +86,22 @@ def calculate_buyer_fit_score(raw_listing, buyer_preferences, config=None):
         ),
     )
 
-    score_field(
-        field_scores=field_scores,
-        skipped_fields=skipped_fields,
-        field_name="distance",
-        preference=buyer_preferences.get("max_distance_miles"),
-        config=config,
-        utility_function=lambda pref, cfg: distance_utility(
-            listing.get("distance_miles"),
-            float(pref["value"]),
-            cfg,
-        ),
-    )
+    if listing.get("distance_miles") is None:
+        skipped_fields["distance"] = "No reference city set — add one in preferences to score distance."
+    else:
+        score_field(
+            field_scores=field_scores,
+            skipped_fields=skipped_fields,
+            field_name="distance",
+            preference=buyer_preferences.get("max_distance_miles"),
+            config=config,
+            utility_function=lambda pref, cfg: distance_utility(
+                listing.get("distance_miles"),
+                float(pref["value"]),
+                cfg,
+                (buyer_preferences.get("reference_city") or "").strip() or None,
+            ),
+        )
 
     score_field(
         field_scores=field_scores,

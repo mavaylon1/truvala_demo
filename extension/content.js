@@ -14,6 +14,7 @@
     min_bathrooms:      { value: 2,       importance: 3 },
     property_type:      { value: 'single_family', importance: 4 },
     max_distance_miles: { value: 10,      importance: 2 },
+    reference_city:     '',
     floors:             { value: 'any',   importance: 2 },
     schools:            { value: 8,       importance: 1, mode: 'minimum_rating' },
   };
@@ -38,11 +39,28 @@
   // ─── Integration points ──────────────────────────────────────────────────────
 
   function scrapeListingPage() {
-    const visibleText = document.body.innerText;
+    const fullText = document.body.innerText;
+    let visibleText = fullText.slice(0, 25000);
+
+    // School sections often appear late in the page (after similar homes, neighborhood data, etc.)
+    // If the school section falls past the 25000-char cutoff, splice it in explicitly.
+    if (fullText.length > 25000) {
+      const schoolMarkers = ['GreatSchools', 'Assigned Schools'];
+      for (const marker of schoolMarkers) {
+        const idx = fullText.indexOf(marker);
+        if (idx > 20000) {
+          visibleText = fullText.slice(0, 20000)
+            + '\n\n'
+            + fullText.slice(Math.max(0, idx - 300), Math.min(idx + 3000, fullText.length));
+          break;
+        }
+      }
+    }
+
     return {
       url: window.location.href,
       page_title: document.title,
-      visible_text: visibleText.length > 25000 ? visibleText.slice(0, 25000) : visibleText,
+      visible_text: visibleText,
       scraped_at: new Date().toISOString(),
       meta: Object.fromEntries(
         Array.from(document.querySelectorAll('meta'))
@@ -57,6 +75,36 @@
 
   function loadUserPreferences() {
     return JSON.parse(JSON.stringify(currentPrefs));
+  }
+
+  // ─── City autocomplete ────────────────────────────────────────────────────────
+
+  async function fetchCitySuggestions(query) {
+    try {
+      const url = new URL('https://photon.komoot.io/api/');
+      url.searchParams.set('q', query);
+      url.searchParams.set('limit', '8');
+      url.searchParams.set('lang', 'en');
+      const resp = await fetch(url.toString());
+      if (!resp.ok) return [];
+      const data = await resp.json();
+      const CITY_TYPES = new Set(['city', 'town', 'village', 'hamlet', 'municipality', 'suburb', 'quarter']);
+      const seen = new Set();
+      return (data.features || [])
+        .filter(f => {
+          const p = f.properties || {};
+          return p.countrycode === 'US' && CITY_TYPES.has(p.osm_value);
+        })
+        .map(f => {
+          const p = f.properties || {};
+          const city  = p.name || '';
+          const state = p.state || '';
+          return [city, state].filter(Boolean).join(', ');
+        })
+        .filter(label => { if (seen.has(label)) return false; seen.add(label); return true; });
+    } catch {
+      return [];
+    }
   }
 
   async function generateListingReport(listingData, preferences) {
@@ -351,10 +399,23 @@
         ],
       })}
 
-      ${sliderInputField({
-        id: 'distance', prefKey: 'max_distance_miles', label: 'Max Distance',
-        sliderMin: 1, sliderMax: 30, step: 1, format: (v) => `${v} mi`,
-      })}
+      <div class="truvala-pref-row">
+        <div class="truvala-pref-header">
+          <span class="truvala-pref-name">Max Distance</span>
+          <input class="truvala-text-input" id="truvala-input-distance"
+            type="text" value="${currentPrefs.max_distance_miles.value} mi" autocomplete="off" spellcheck="false">
+        </div>
+        <input class="truvala-slider" type="range" id="truvala-slider-distance"
+          min="1" max="30" step="1"
+          value="${Math.min(Math.max(currentPrefs.max_distance_miles.value, 1), 30)}">
+        <div class="truvala-ref-city-row">
+          <span class="truvala-ref-city-label">from</span>
+          <input class="truvala-ref-city-input" id="truvala-input-ref-city"
+            type="text" placeholder="e.g. Newport Beach, CA"
+            value="${currentPrefs.reference_city || ''}" autocomplete="off" spellcheck="false">
+        </div>
+        ${impGroup('max_distance_miles')}
+      </div>
 
       ${pillField({
         prefKey: 'floors', label: 'Floors',
@@ -804,17 +865,28 @@
       return null;
     };
 
-    // Weighted composite
-    const byLevel = {};
-    schools.forEach(s => {
-      const lvl = classify(s.type);
-      if (lvl && s.rating != null) (byLevel[lvl] = byLevel[lvl] || []).push(s.rating);
+    // Deduplicate by name, same logic as backend normalizer
+    const seen = new Set();
+    const deduped = schools.filter(s => {
+      const name = (s.name || '').toLowerCase().trim();
+      if (name && seen.has(name)) return false;
+      if (name) seen.add(name);
+      return true;
     });
-    const levelAvg     = Object.fromEntries(Object.entries(byLevel).map(([l, rs]) => [l, rs.reduce((a,b)=>a+b,0)/rs.length]));
-    const present      = Object.fromEntries(Object.entries(WEIGHTS).filter(([l]) => l in levelAvg));
-    const totalW       = Object.values(present).reduce((a,b)=>a+b,0);
-    const composite    = totalW > 0 ? Object.entries(present).reduce((s,[l,w])=>s+levelAvg[l]*w,0)/totalW : null;
-    const ratingColor  = v => v >= 8 ? '#10b981' : v >= 5 ? '#f59e0b' : '#ef4444';
+
+    // Only rated schools contribute to the composite and appear as cards
+    const ratedSchools = deduped.filter(s => classify(s.type) && s.rating != null);
+
+    const byLevel = {};
+    ratedSchools.forEach(s => {
+      const lvl = classify(s.type);
+      (byLevel[lvl] = byLevel[lvl] || []).push(s.rating);
+    });
+    const levelAvg  = Object.fromEntries(Object.entries(byLevel).map(([l, rs]) => [l, rs.reduce((a,b)=>a+b,0)/rs.length]));
+    const present   = Object.fromEntries(Object.entries(WEIGHTS).filter(([l]) => l in levelAvg));
+    const totalW    = Object.values(present).reduce((a,b)=>a+b,0);
+    const composite = totalW > 0 ? Object.entries(present).reduce((s,[l,w])=>s+levelAvg[l]*w,0)/totalW : null;
+    const ratingColor = v => v >= 8 ? '#10b981' : v >= 5 ? '#f59e0b' : '#ef4444';
 
     const compositeHTML = composite != null ? `
       <div class="truvala-school-composite">
@@ -822,23 +894,19 @@
         <span class="truvala-school-composite-val" style="color:${ratingColor(composite)}">${composite.toFixed(1)}<span style="font-size:11px;opacity:0.7">/10</span></span>
       </div>` : '';
 
-    const cards = schools
-      .filter(s => classify(s.type))
-      .map(s => {
-        const lvl   = classify(s.type);
-        const label = TYPE_LABEL[lvl];
-        const hasRating = s.rating != null;
-        return `
-          <div class="truvala-school-card">
-            <div class="truvala-school-card-info">
-              <div class="truvala-school-card-name">${escapeHTML(s.name || 'Unknown')}</div>
-              <div class="truvala-school-card-type">${label}</div>
-            </div>
-            <div class="truvala-school-card-rating" style="color:${hasRating ? ratingColor(s.rating) : '#94a3b8'}">
-              ${hasRating ? `${s.rating}<span style="font-size:10px;opacity:0.7">/10</span>` : '—'}
-            </div>
-          </div>`;
-      }).join('');
+    const cards = ratedSchools.map(s => {
+      const label = TYPE_LABEL[classify(s.type)];
+      return `
+        <div class="truvala-school-card">
+          <div class="truvala-school-card-info">
+            <div class="truvala-school-card-name">${escapeHTML(s.name || 'Unknown')}</div>
+            <div class="truvala-school-card-type">${label}</div>
+          </div>
+          <div class="truvala-school-card-rating" style="color:${ratingColor(s.rating)}">
+            ${s.rating}<span style="font-size:10px;opacity:0.7">/10</span>
+          </div>
+        </div>`;
+    }).join('');
 
     const note = `<div class="truvala-school-weight-note">Weighted: elementary 50% · high school 30% · middle school 20%</div>`;
 
@@ -879,6 +947,19 @@
         </div>`;
     }).join('');
 
+    const skippedMsg = report.skipped_fields?.distance;
+    const skippedDistanceRow = skippedMsg ? `
+      <div class="truvala-field-row truvala-field-row--skipped">
+        <div class="truvala-field-row-static">
+          <span class="truvala-field-row-name">Distance</span>
+          <div class="truvala-field-bar-track truvala-field-row-bar">
+            <div class="truvala-field-bar-fill" style="width:0%;background:#e2e8f0"></div>
+          </div>
+          <span class="truvala-field-row-pct" style="color:#94a3b8">—</span>
+        </div>
+        <div class="truvala-field-row-detail" style="display:block">${skippedMsg}</div>
+      </div>` : '';
+
 
     return `
       <div class="truvala-score-card">
@@ -892,7 +973,7 @@
           </div>
         </div>
         <div class="truvala-field-rows" id="truvala-breakdown-grid">
-          ${fieldRows}
+          ${fieldRows}${skippedDistanceRow}
         </div>
       </div>
 
@@ -2129,6 +2210,66 @@
       distInput.value = `${currentPrefs.max_distance_miles.value} mi`;
     });
     distInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') distInput.blur(); });
+
+    // Reference city + autocomplete
+    const refCityInput = document.getElementById('truvala-input-ref-city');
+    if (refCityInput) {
+      let _cityTimer = null;
+
+      function getCityDropdown() {
+        let dd = document.getElementById('truvala-city-dropdown');
+        if (!dd) {
+          dd = document.createElement('div');
+          dd.id = 'truvala-city-dropdown';
+          dd.className = 'truvala-city-dropdown';
+          refCityInput.parentElement.appendChild(dd);
+        }
+        return dd;
+      }
+
+      function hideCityDropdown() {
+        const dd = document.getElementById('truvala-city-dropdown');
+        if (dd) dd.style.display = 'none';
+      }
+
+      function showCityDropdown(suggestions) {
+        const dd = getCityDropdown();
+        if (!suggestions.length) { dd.style.display = 'none'; return; }
+        dd.innerHTML = suggestions
+          .map(s => `<div class="truvala-city-option" data-value="${s.replace(/"/g, '&quot;')}">${s}</div>`)
+          .join('');
+        dd.style.display = 'block';
+        dd.querySelectorAll('.truvala-city-option').forEach(opt => {
+          opt.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            refCityInput.value = opt.dataset.value;
+            currentPrefs.reference_city = opt.dataset.value;
+            hideCityDropdown();
+          });
+        });
+      }
+
+      refCityInput.addEventListener('input', () => {
+        clearTimeout(_cityTimer);
+        const q = refCityInput.value.trim();
+        if (q.length < 2) { hideCityDropdown(); return; }
+        _cityTimer = setTimeout(async () => {
+          const suggestions = await fetchCitySuggestions(q);
+          showCityDropdown(suggestions);
+        }, 350);
+      });
+
+      refCityInput.addEventListener('blur', () => {
+        // Delay hide so mousedown on a suggestion fires first
+        setTimeout(hideCityDropdown, 150);
+        currentPrefs.reference_city = refCityInput.value.trim();
+      });
+
+      refCityInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') refCityInput.blur();
+        if (e.key === 'Escape') hideCityDropdown();
+      });
+    }
 
     // Schools slider
     const schoolSlider = document.getElementById('truvala-slider-schools');

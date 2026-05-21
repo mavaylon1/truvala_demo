@@ -9,10 +9,12 @@ Flow per request:
 """
 
 import json
+import math
 import os
 import sys
 from pathlib import Path
 
+import requests as _requests
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -26,6 +28,37 @@ from buyer_score import calculate_buyer_fit_score
 from cost_calculator import calculate_monthly_costs
 from partners.ecosolar import get_ecosolar_estimate
 from risk import analyze_risk
+
+# ─── Geocoding / distance ─────────────────────────────────────────────────────
+
+_NOMINATIM_HEADERS = {"User-Agent": "Truvala/1.0 (homebuyer-tool)"}
+
+
+def geocode(query: str):
+    """Returns (lat, lon) tuple or None."""
+    try:
+        resp = _requests.get(
+            "https://nominatim.openstreetmap.org/search",
+            params={"q": query, "format": "json", "limit": 1},
+            headers=_NOMINATIM_HEADERS,
+            timeout=5,
+        )
+        results = resp.json()
+        if not results:
+            return None
+        return float(results[0]["lat"]), float(results[0]["lon"])
+    except Exception:
+        return None
+
+
+def haversine_miles(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    R = 3958.8
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi    = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
+    return round(R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a)), 1)
+
 
 app = FastAPI()
 
@@ -55,10 +88,10 @@ Rules:
 - Preserve manufactured/mobile-home-in-park property types exactly
 - floors: extract as "single_story", "two_story", "three_plus_story", or null
 - description: include the full listing description and agent remarks
-- schools: extract from the assigned/nearby schools section only — not from neighborhood text or comparable home listings.
-  Return an array where each entry is {"name": "...", "type": "elementary|middle|high|district", "rating": <int or null>}
-  Rating rules: look for patterns like "9/10" or "7\n/10" — use the integer before the slash. The rating may appear BEFORE or AFTER the school name depending on the site (Zillow shows rating first; Trulia and Redfin show name first). Do not guess — use null if no rating is clearly present.
-  Type rules: infer from grade ranges in the text — K-5 or K-6 = elementary, 6-8 or 7-8 = middle, 9-12 = high. A school with grades 7-12 or 6-12 is "high" (not middle) — it is a combined school, classify by its highest grade. MLS fields like "Jr High / Middle School: [name]" are district assignments, not separate schools — only extract schools that have an explicit rating in the GreatSchools or school rating section. If it is a school district name, use "district". Include all schools found."""
+- schools: return ONLY schools that have an explicit numeric rating in the GreatSchools widget or school rating section. Do NOT extract names from MLS assignment fields like "Elementary School: Harbor View" or "Jr High / Middle School: Foo" — those fields list district assignments and never have ratings. If a school has no visible rating, omit it entirely.
+  Return an array: [{"name": "...", "type": "elementary|middle|high", "rating": <int>}]
+  Rating: look for "9/10" or "8\\n/10" — use the integer before the slash. Zillow shows the rating before the school name; Trulia and Redfin show it after.
+  Type: infer from grade range — K-5 or K-6 = elementary, 6-8 or 7-8 = middle, 9-12 = high. Grades 7-12 or 6-12 = high (classify by the highest grade present)."""
 
 LISTING_SCHEMA = {
     "address": None, "city": None, "state": None, "zip": None,
@@ -115,6 +148,17 @@ async def analyze(req: AnalyzeRequest):
     except Exception as e:
         raise HTTPException(status_code=422, detail=f"Extraction failed: {e}")
 
+    # Compute straight-line distance from listing to reference city
+    reference_city = (req.preferences.get("reference_city") or "").strip()
+    if reference_city and not structured.get("distance_miles"):
+        addr_parts = [structured.get("address"), structured.get("city"), structured.get("state")]
+        listing_query = ", ".join(p for p in addr_parts if p)
+        if listing_query:
+            listing_coords = geocode(listing_query)
+            ref_coords     = geocode(reference_city)
+            if listing_coords and ref_coords:
+                structured["distance_miles"] = haversine_miles(*listing_coords, *ref_coords)
+
     try:
         score_result = calculate_buyer_fit_score(structured, req.preferences)
     except Exception as e:
@@ -131,8 +175,9 @@ async def analyze(req: AnalyzeRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Report generation failed: {e}")
 
-    report["risk_report"] = risk_report
-    report["listing"]     = structured  # passed to /chat for full context
+    report["risk_report"]     = risk_report
+    report["listing"]         = structured  # passed to /chat for full context
+    report["skipped_fields"]  = score_result.get("skipped_fields", {})
 
     # Monthly cost breakdown + EcoSolar (non-fatal if they fail)
     report["monthly_costs"] = calculate_monthly_costs(structured)
@@ -284,7 +329,7 @@ def extract_listing(raw_scrape: dict) -> dict:
     compact = {
         "url": raw_scrape.get("url"),
         "page_title": raw_scrape.get("page_title"),
-        "visible_text": (raw_scrape.get("visible_text") or "")[:25000],
+        "visible_text": (raw_scrape.get("visible_text") or "")[:30000],
         "meta": raw_scrape.get("meta", {}),
     }
     response = client.responses.create(
