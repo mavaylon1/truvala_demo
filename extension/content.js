@@ -187,7 +187,7 @@
   function computeRiskPenalty(riskReport) {
     if (!riskReport) return 0;
     let penalty = 0;
-    const modules = ['age_era', 'component_lifespan', 'listing_language', 'builder_info', 'maintenance_history'];
+    const modules = ['age_era', 'component_lifespan', 'listing_language', 'builder_info', 'maintenance_history', 'neighborhood', 'insurance'];
     for (const key of modules) {
       const mod = riskReport[key];
       if (!mod) continue;
@@ -875,6 +875,163 @@
   }
 
 
+  // ─── 5-Tab Risk Report Builders ──────────────────────────────────────────────
+
+  function buildTabHTML(key, label, icon, badge, bullets) {
+    const bulletsHTML = bullets.length
+      ? bullets.map(b => {
+          const safe = (b.fullText || b.display).replace(/"/g, '&quot;');
+          const emojiSpan = b.emoji ? `<span class="truvala-bullet-icon">${b.emoji}</span>` : '';
+          return `
+          <div class="truvala-compact-bullet" data-module-key="${key}" data-bullet-text="${safe}">
+            <span class="truvala-bullet-dot" style="background:${b.color}"></span>
+            ${emojiSpan}<span class="truvala-bullet-text">${b.display}</span>
+            <span class="truvala-bullet-history-icon" style="display:none"><svg width="15" height="15" viewBox="0 0 24 24" fill="#3b82f6"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+          </div>`;
+        }).join('')
+      : `<div class="truvala-compact-bullet"><span style="color:#94a3b8;font-style:italic">No signals detected</span></div>`;
+    return `
+      <div class="truvala-risk-module" data-module-key="${key}">
+        <button class="truvala-risk-module-btn" data-module-key="${key}">
+          <span class="truvala-risk-module-title"><span class="truvala-tab-icon">${icon}</span>${label}</span>
+          <div class="truvala-risk-module-right">${badge}<span class="truvala-risk-chevron">›</span></div>
+        </button>
+        <div class="truvala-risk-module-body" style="display:none">
+          ${bulletsHTML}
+        </div>
+      </div>`;
+  }
+
+  const _HEALTH_RE = /lead|asbestos|mold|mould|moisture|water.damage|water.intrusion|radon|carbon.monoxide|knob.and.tube|knob-and-tube|aluminum.wir|polybutylene|chinese.drywall|flood.zone|floodplain/i;
+
+  function healthBulletLabel(text) {
+    const t = text.toLowerCase();
+    if (/lead\s*paint|lead-based/.test(t))            return 'Lead Paint Hazard';
+    if (/asbestos/.test(t))                           return 'Asbestos Materials';
+    if (/knob.and.tube|knob-and-tube/.test(t))        return 'Knob-and-Tube Wiring';
+    if (/aluminum.wir/.test(t))                       return 'Aluminum Wiring';
+    if (/polybutylene/.test(t))                       return 'Polybutylene Plumbing';
+    if (/chinese.drywall/.test(t))                    return 'Chinese Drywall';
+    if (/mold|mould/.test(t))                         return 'Mold & Moisture';
+    if (/moisture|water.damage|water.intrusion/.test(t)) return 'Water Intrusion';
+    if (/flood/.test(t))                              return 'Flood Zone';
+    if (/radon/.test(t))                              return 'Radon Exposure';
+    if (/carbon.monoxide/.test(t))                    return 'Carbon Monoxide';
+    return text.replace(/^\[(High|Medium|Low)\]\s*/i, '').split(/\s*[—–]\s*/)[0].trim();
+  }
+
+  function healthBulletEmoji(text) {
+    const t = text.toLowerCase();
+    if (/lead/.test(t))                      return '🎨';
+    if (/asbestos/.test(t))                  return '⚠️';
+    if (/knob.and.tube|aluminum.wir/.test(t)) return '⚡';
+    if (/mold|mould|moisture|water/.test(t)) return '💧';
+    if (/flood/.test(t))                     return '🌊';
+    if (/radon/.test(t))                     return '☢️';
+    if (/carbon.monoxide/.test(t))           return '💨';
+    if (/polybutylene/.test(t))              return '🔧';
+    if (/chinese.drywall/.test(t))           return '🏗️';
+    return '⚠️';
+  }
+
+  function buildHealthTab(rr) {
+    const bullets = [];
+    for (const s of (rr.age_era?.computed_risk_signals || [])) {
+      if (_HEALTH_RE.test(s) && bullets.length < 4) {
+        bullets.push({ display: healthBulletLabel(s), fullText: s, color: '#fb923c', emoji: healthBulletEmoji(s) });
+      }
+    }
+    for (const s of (rr.listing_language?.computed_risk_signals || [])) {
+      if (/mold|mould|moisture|water.damage|water.intrusion|flood/i.test(s) && bullets.length < 4) {
+        bullets.push({ display: healthBulletLabel(s), fullText: s, color: '#fb923c', emoji: healthBulletEmoji(s) });
+      }
+    }
+    if (!bullets.length) {
+      bullets.push({ display: 'No Health Hazards', fullText: 'No health hazard signals detected for this property', color: '#10b981', emoji: '✅' });
+    }
+    const warnCount = bullets.filter(b => b.color === '#fb923c').length;
+    const badge = warnCount
+      ? `<span class="truvala-module-badge truvala-badge-warn">${warnCount} signal${warnCount !== 1 ? 's' : ''}</span>`
+      : `<span class="truvala-module-badge truvala-badge-clear">✓ Clear</span>`;
+    return buildTabHTML('health', 'Health', MODULE_ICONS['health'], badge, bullets);
+  }
+
+  const _COMPONENT_DEFS = [
+    { backendName: 'Roof',             display: 'Roof',         emoji: '🏠' },
+    { backendName: 'Water Heater',     display: 'Water Heater', emoji: '🚿' },
+    { backendName: 'Plumbing',         display: 'Plumbing',     emoji: '🔧' },
+    { backendName: 'HVAC',             display: 'HVAC',         emoji: '❄️' },
+    { backendName: 'Electrical Panel', display: 'Electrical',   emoji: '⚡' },
+    { backendName: 'Foundation',       display: 'Foundation',   emoji: '🏛️' },
+  ];
+
+  function buildComponentTab(rr) {
+    const signals = rr.component_lifespan?.computed_risk_signals || [];
+    const facts   = rr.component_lifespan?.observed_facts || [];
+    const bullets = _COMPONENT_DEFS.map(({ backendName, display, emoji }) => {
+      const nameLower = backendName.toLowerCase();
+      const signal = signals.find(s => s.toLowerCase().startsWith(nameLower + ':'));
+      const fact   = facts.find(f => f.toLowerCase().startsWith(nameLower + ':'));
+      let color = '#94a3b8';
+      let fullText = `${backendName}: age and condition unverified`;
+      if (signal) {
+        fullText = signal;
+        color = /age unknown/i.test(signal) ? '#94a3b8' : '#fb923c';
+      } else if (fact) {
+        fullText = fact;
+        color = /within typical lifespan|recent update|replaced/i.test(fact) ? '#10b981' : '#94a3b8';
+      }
+      return { display, fullText, color, emoji };
+    });
+    const warnCount = bullets.filter(b => b.color === '#fb923c').length;
+    const badge = warnCount
+      ? `<span class="truvala-module-badge truvala-badge-warn">${warnCount} component${warnCount !== 1 ? 's' : ''} flagged</span>`
+      : `<span class="truvala-module-badge truvala-badge-clear">✓ All clear</span>`;
+    return buildTabHTML('component_lifespan', 'Component Lifespan', MODULE_ICONS['component_lifespan'], badge, bullets);
+  }
+
+  function buildNeighborhoodTab(rr, listing) {
+    const city = listing.city || listing.address || '';
+    const signals = rr.neighborhood?.computed_risk_signals || [];
+    const bullets = [
+      { display: 'Crime Rate',        fullText: signals[0] || `Crime Rate — ${city || 'area'} town safety statistics`, color: '#94a3b8', emoji: '🚨' },
+      { display: 'Traffic & Commute', fullText: signals[1] || `Traffic & Commute — highways and commute times near ${city || 'this area'}`, color: '#94a3b8', emoji: '🚗' },
+    ];
+    const badge = `<span class="truvala-module-badge truvala-badge-warn">Research needed</span>`;
+    return buildTabHTML('neighborhood', 'Neighborhood', MODULE_ICONS['neighborhood'], badge, bullets);
+  }
+
+  function buildLanguageTab(rr) {
+    const signals = rr.listing_language?.computed_risk_signals || [];
+    const hasRisk = signals.length > 0;
+    const allText = hasRisk ? signals.join('; ') : 'No high-risk language in listing';
+    const bullet  = { display: 'High-risk Language', fullText: allText, color: hasRisk ? '#fb923c' : '#10b981', emoji: '🚩' };
+    const badge   = hasRisk
+      ? `<span class="truvala-module-badge truvala-badge-warn">${signals.length} flag${signals.length !== 1 ? 's' : ''}</span>`
+      : `<span class="truvala-module-badge truvala-badge-clear">✓ Clear</span>`;
+    return buildTabHTML('language', 'Language', MODULE_ICONS['language'], badge, [bullet]);
+  }
+
+  function buildInsuranceTab(rr, listing) {
+    const state   = listing.state || '';
+    const signals = rr.insurance?.computed_risk_signals || [];
+    const disasterColor  = signals[0] && /flag detected|reference detected/i.test(signals[0]) ? '#fb923c' : '#94a3b8';
+    const coverageColor  = signals[1] && /high hurricane|wildfire|flood risk|limited|exited|stopped writing/i.test(signals[1]) ? '#fb923c' : '#94a3b8';
+    const leaseColor     = signals[2] && /land lease detected|lease detected/i.test(signals[2]) ? '#fb923c' : '#94a3b8';
+    const bullets = [
+      { display: 'Natural Disaster History', fullText: signals[0] || `Natural disaster exposure — flood, wildfire, storm${state ? ' in ' + state : ''}`, color: disasterColor, emoji: '🌪️' },
+      { display: 'Insurance Availability',   fullText: signals[1] || `Insurance coverage — state policies and premiums${state ? ' in ' + state : ''}`,     color: coverageColor, emoji: '🛡️' },
+      { display: 'Land Lease',               fullText: signals[2] || 'Land Lease — own land or pay ground rent',                                            color: leaseColor,   emoji: '📋' },
+    ];
+    const warnCount = bullets.filter(b => b.color === '#fb923c').length;
+    const badge = warnCount
+      ? `<span class="truvala-module-badge truvala-badge-warn">${warnCount} concern${warnCount !== 1 ? 's' : ''}</span>`
+      : `<span class="truvala-module-badge truvala-badge-warn">Research needed</span>`;
+    return buildTabHTML('insurance', 'Insurance', MODULE_ICONS['insurance'], badge, bullets);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+
   function buildReportHTML(report) {
     const displayScore = getDisplayScore(report.score, report.risk_report);
     const fieldChips = Object.entries(report.field_scores).map(([key, f]) => {
@@ -1109,13 +1266,13 @@
   function buildFullRiskHTML(report) {
     const rr = report.risk_report;
     if (!rr) return '<p class="truvala-drawer-empty">Risk data not available for this listing.</p>';
+    const listing = report.listing || {};
     return `
-      ${buildCompactModuleHTML(rr.age_era, 'age_era')}
-      ${buildCompactModuleHTML(rr.component_lifespan, 'component_lifespan')}
-      ${buildCompactModuleHTML(rr.listing_language, 'listing_language')}
-      ${buildCompactChecklistHTML(rr.verification_checklist)}
-      ${buildCompactModuleHTML(rr.builder_info, 'builder_info')}
-      ${buildCompactModuleHTML(rr.maintenance_history, 'maintenance_history')}`;
+      ${buildHealthTab(rr)}
+      ${buildComponentTab(rr)}
+      ${buildNeighborhoodTab(rr, listing)}
+      ${buildLanguageTab(rr)}
+      ${buildInsuranceTab(rr, listing)}`;
   }
 
   function openRiskDrawer() {
@@ -1278,17 +1435,27 @@
   // ─── Risk detail panel (per-factor Ask Truvala) ──────────────────────────────
 
   const MODULE_LABELS = {
-    age_era:             'Age & Era',
+    health:              'Health',
     component_lifespan:  'Component Lifespan',
-    listing_language:    'Listing Language Flags',
+    neighborhood:        'Neighborhood',
+    language:            'Language',
+    insurance:           'Insurance',
+    // Legacy keys (still in risk_report from backend)
+    age_era:             'Age & Era',
+    listing_language:    'Listing Language',
     verify:              'Missing Info & Verification',
     builder_info:        'Builder & Developer',
     maintenance_history: 'Maintenance & Permit History',
   };
 
   const MODULE_ICONS = {
-    age_era:             `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
+    health:              `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`,
     component_lifespan:  `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>`,
+    neighborhood:        `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`,
+    language:            `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`,
+    insurance:           `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`,
+    // Legacy
+    age_era:             `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
     listing_language:    `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`,
     verify:              `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>`,
     builder_info:        `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`,
@@ -1296,17 +1463,45 @@
   };
 
   const MODULE_SOURCES = {
-    age_era: [
+    health: [
       'epa.gov/lead/renovation-repair-painting-program',
-      'hud.gov/program_offices/healthy_homes/lead',
       'epa.gov/asbestos/asbestos-your-home',
-      'nachi.org/historic-home-inspection.htm',
+      'epa.gov/mold/mold-and-your-health',
+      'cdc.gov/niosh/topics/indoorenv',
+      'niehs.nih.gov/health/topics/agents',
     ],
     component_lifespan: [
       'nahb.org/how-long-do-products-last-chart',
       'energystar.gov/products/central_air_conditioner',
       'nrca.net/rf/service/warranty-basics',
       'nachi.org/component-lifespans.htm',
+    ],
+    neighborhood: [
+      'city-data.com',
+      'areavibes.com',
+      'crimemapping.com',
+      'spotcrime.com',
+      'commutesolutions.org',
+    ],
+    language: [
+      'realtor.com/advice/buy/red-flag-listing-phrases',
+      'nolo.com/legal-encyclopedia/warning-signs-home-purchase',
+      'consumerfinance.gov/ask-cfpb/home-buying',
+      'hud.gov/buyer/process',
+    ],
+    insurance: [
+      'fema.gov/national-flood-insurance-program',
+      'floodsmart.gov',
+      'iii.org/article/homeowners-insurance-basics',
+      'naic.org/index_consumer.htm',
+      'disasterassistance.gov',
+    ],
+    // Legacy keys
+    age_era: [
+      'epa.gov/lead/renovation-repair-painting-program',
+      'hud.gov/program_offices/healthy_homes/lead',
+      'epa.gov/asbestos/asbestos-your-home',
+      'nachi.org/historic-home-inspection.htm',
     ],
     listing_language: [
       'realtor.com/advice/buy/red-flag-listing-phrases',
@@ -1370,11 +1565,37 @@
       `netronline.com/getrecordinformation.aspx?address=${addrQ}`,
       `clrsearch.com/Property_Records/${addrQ}`,
     ];
+    if (moduleKey === 'neighborhood') return addr ? [
+      `city-data.com/city/${addrQ}.html`,
+      `areavibes.com/${addrQ}/livability`,
+      `spotcrime.com/crimes/${addrQ}`,
+      `crimemapping.com`,
+      `commutesolutions.org`,
+    ] : MODULE_SOURCES.neighborhood;
+    if (moduleKey === 'insurance') return addr ? [
+      `fema.gov/flood-maps/tools-resources/flood-map-service-center`,
+      `floodsmart.gov/flood-map-zone`,
+      `iii.org/article/homeowners-insurance-basics`,
+      `naic.org/index_consumer.htm`,
+      `disasterassistance.gov`,
+    ] : MODULE_SOURCES.insurance;
+    if (moduleKey === 'health') return MODULE_SOURCES.health;
+    if (moduleKey === 'language') return MODULE_SOURCES.language;
     const t = (bulletText || '').toLowerCase();
     for (const { re, sources } of _BULLET_SOURCE_MAP) {
       if (re.test(t)) return sources;
     }
     return MODULE_SOURCES[moduleKey] || MODULE_SOURCES.verify;
+  }
+
+  function _cacheCurrentBullet() {
+    if (activeDetailKey === null || detailChatMessages.length === 0) return;
+    const key = `${activeDetailKey}||${activeDetailBullet}`;
+    _bulletChatCache.set(key, {
+      messages: [...detailChatMessages],
+      html: document.getElementById('truvala-detail-chat-log').innerHTML,
+    });
+    updateBulletHistoryIcon(activeDetailKey, activeDetailBullet);
   }
 
   function scrollDetailChatToBottom() {
@@ -1485,6 +1706,21 @@
     }
   }
 
+  function showDetailSourcesDone(sources) {
+    const log = document.getElementById('truvala-detail-chat-log');
+    if (!log) return;
+    const items = sources.map(src =>
+      `<div class="truvala-source-item truvala-source-appear"><span class="truvala-source-check">✓</span><span class="truvala-source-link">${escapeHTML(src)}</span></div>`
+    ).join('');
+    const container = document.createElement('div');
+    container.id = 'truvala-detail-sources';
+    container.className = 'truvala-sources-container';
+    container.innerHTML = `
+      <div class="truvala-sources-header"><span class="truvala-sources-done">✓</span>Sources checked</div>
+      <div class="truvala-sources-list">${items}</div>`;
+    log.appendChild(container);
+  }
+
   async function sendDetailChatMessage(content) {
     const text = content.trim();
     if (!text || !currentReport) return;
@@ -1568,8 +1804,8 @@
       return;
     }
 
-    // Save current chat before switching bullets
-    if (activeDetailKey !== null && detailChatMessages.length > 0) {
+    // Save current chat before switching bullets (only if a full response exists)
+    if (activeDetailKey !== null && detailChatMessages.some(m => m.role === 'assistant')) {
       const oldKey = `${activeDetailKey}||${activeDetailBullet}`;
       _bulletChatCache.set(oldKey, {
         messages: [...detailChatMessages],
@@ -1594,7 +1830,14 @@
     const cached = _bulletChatCache.get(newCacheKey);
     if (cached) {
       detailChatMessages = [...cached.messages];
-      document.getElementById('truvala-detail-chat-log').innerHTML = cached.html;
+      if (cached.html) {
+        document.getElementById('truvala-detail-chat-log').innerHTML = cached.html;
+      } else {
+        // Background-cached: re-render sources (done state) then message
+        if (cached.sources) showDetailSourcesDone(cached.sources);
+        const assistantMsg = cached.messages.find(m => m.role === 'assistant');
+        if (assistantMsg) appendDetailMessage('assistant', assistantMsg.content);
+      }
       scrollDetailChatToBottom();
       return;
     }
@@ -1610,17 +1853,59 @@
 
     const sourcesForPrompt = resolvedSources.join('\n- ');
     const bulletContext = bulletText ? `, focused on: "${bulletText}"` : '';
+
+    // Extract builder name for builder_info module
+    const builderName = listing.builder || listing.developer || (() => {
+      const facts = currentReport.risk_report?.builder_info?.observed_facts || [];
+      const fact = facts.find(f => /^Builder (on record|reference detected)/.test(f));
+      return fact ? fact.replace(/^Builder (?:on record|reference detected in listing):\s*/, '') : '';
+    })();
+
     const listingFacts = [
       listing.year_built     ? `Year built: ${listing.year_built}` : '',
       listing.property_type  ? `Type: ${listing.property_type}`    : '',
       listing.address        ? `Address: ${listing.address}`       : '',
+      builderName            ? `Builder/Developer: ${builderName}` : '',
       listing.description    ? `Listing excerpt: "${String(listing.description).slice(0, 350)}…"` : '',
     ].filter(Boolean).join('\n');
+
+    const moduleSpecificInstruction = (() => {
+      if (moduleKey === 'builder_info') {
+        return builderName
+          ? `\nThe builder for this property is ${builderName}. Research specifically: their BBB complaint rating, any known class-action or construction defect lawsuits, their warranty program and responsiveness, and quality review history. Name ${builderName} explicitly throughout your response.`
+          : `\nNo builder name was found in this listing. Ask the buyer to request the builder's name, then check BBB complaint history, construction defect records, and warranty terms.`;
+      }
+      if (moduleKey === 'health') {
+        return `\nFocus exclusively on documented health hazards for this home. Cover: lead paint (pre-1978), asbestos-containing materials, mold or moisture issues, radon, carbon monoxide risks, knob-and-tube or aluminum wiring fire hazards, Chinese drywall off-gassing, and polybutylene plumbing health risks. Always cite official health agency sources.`;
+      }
+      if (moduleKey === 'component_lifespan') {
+        return `\nFor the specific component "${bulletText}", provide: (1) typical lifespan range and estimated age based on the build year, (2) estimated replacement cost range, (3) key warning signs to check during inspection, (4) maintenance tips to extend its life, (5) specific questions to ask the home inspector. Be concrete with numbers.`;
+      }
+      if (moduleKey === 'neighborhood') {
+        const isTraffic = /traffic|commute/i.test(bulletText || '');
+        const city = listing.city || addr || 'this area';
+        return isTraffic
+          ? `\nCover traffic and commute for ${city}: nearest highways and interstates, rush-hour drive times to 1–2 city centers, transit options. Be specific and concise — 2 Key Risk Signals max.`
+          : `\nCrime stats for ${city} and its closest surrounding towns. Include safety ratings and violent vs. property crime breakdown for each town. Be concise — 2 Key Risk Signals max.`;
+      }
+      if (moduleKey === 'language') {
+        return `\nAnalyze the high-risk language found in this listing. Explain what each red-flag phrase legally implies for the buyer, what obligations or liabilities it may shift to the buyer, and what specific due diligence steps to take before signing. Be concrete about the buyer's legal rights.`;
+      }
+      if (moduleKey === 'insurance') {
+        const isLandLease = /land.lease|ground.lease|leasehold/i.test(bulletText || '');
+        const isDisaster  = /natural.disaster|flood|wildfire|earthquake|hurricane|storm/i.test(bulletText || '');
+        if (isLandLease) return `\nInvestigate land lease status for this property: what it means, how rent escalates over time, resale impact, and key lease terms to review. Be concise — 2 Key Risk Signals max.`;
+        if (isDisaster)  return `\nDisaster exposure for ${addr || 'this area'}: FEMA flood zone, wildfire/seismic risk, notable historical events, estimated annual disaster coverage cost. Be concise — 2 Key Risk Signals max.`;
+        return `\nInsurance in ${listing.state || 'its state'}: whether major carriers are writing policies here, estimated annual premium range, lender-required coverage types. Be concise — 2 Key Risk Signals max.`;
+      }
+      return '';
+    })();
+
     const researchPrompt = `You are analyzing the "${label}" risk factor${bulletContext} for a specific property. Use the listing details below to ground your response — do not give generic advice.
 
 Property details:
 ${listingFacts || '(see listing data provided)'}
-
+${moduleSpecificInstruction}
 Reply using ONLY these three sections with exact markdown headers. Break every point into sub-bullets using · (middle dot). No paragraph blocks.
 
 **Key Risk Signals**
@@ -1643,14 +1928,19 @@ Reply using ONLY these three sections with exact markdown headers. Break every p
 Cite from these sources (use the actual URLs):
 - ${sourcesForPrompt}`;
 
-    detailChatMessages = [{ role: 'user', content: researchPrompt }];
+    // Capture identity for this specific generation — survives tab switches
+    const thisModuleKey   = moduleKey;
+    const thisBulletText  = bulletText || null;
+    const thisCacheKey    = `${thisModuleKey}||${thisBulletText}`;
+    const thisMessages    = [{ role: 'user', content: researchPrompt }];
+    detailChatMessages = thisMessages;
     showDetailTyping();
     try {
       const res = await fetch(CHAT_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages:       detailChatMessages,
+          messages:       thisMessages,
           risk_report:    currentReport.risk_report || {},
           listing:        currentReport.listing     || {},
           preferences:    currentPrefs,
@@ -1659,14 +1949,26 @@ Cite from these sources (use the actual URLs):
         }),
       });
       const data = await res.json();
-      removeDetailTyping();
-      detailChatMessages.push({ role: 'assistant', content: data.message });
-      appendDetailMessage('assistant', data.message);
-      markSourcesDone();
+      thisMessages.push({ role: 'assistant', content: data.message });
+      const isStillActive = activeDetailKey === thisModuleKey && activeDetailBullet === thisBulletText;
+      if (isStillActive) {
+        detailChatMessages = thisMessages;
+        removeDetailTyping();
+        appendDetailMessage('assistant', data.message);
+        markSourcesDone();
+        _cacheCurrentBullet();
+      } else {
+        // Switched away mid-generation — cache silently without touching DOM
+        _bulletChatCache.set(thisCacheKey, { messages: thisMessages, html: null, sources: resolvedSources });
+        updateBulletHistoryIcon(thisModuleKey, thisBulletText);
+      }
     } catch {
-      removeDetailTyping();
-      appendDetailMessage('assistant', `I've reviewed the ${label} for this property. Feel free to ask me anything about it.`);
-      markSourcesDone();
+      if (activeDetailKey === thisModuleKey && activeDetailBullet === thisBulletText) {
+        removeDetailTyping();
+        appendDetailMessage('assistant', `I've reviewed the ${label} for this property. Feel free to ask me anything about it.`);
+        markSourcesDone();
+        _cacheCurrentBullet();
+      }
     }
   }
 
@@ -1818,7 +2120,6 @@ Cite from these sources (use the actual URLs):
 
     // Risk drawer — module header toggles accordion only; bullet click opens detail panel
     document.getElementById('truvala-risk-drawer').addEventListener('click', (e) => {
-      // Bullet click → open detail panel for that specific signal
       const bullet = e.target.closest('.truvala-compact-bullet[data-module-key]');
       if (bullet) {
         const moduleKey  = bullet.dataset.moduleKey;
@@ -1826,7 +2127,6 @@ Cite from these sources (use the actual URLs):
         if (moduleKey) openRiskDetailPanel(moduleKey, bulletText);
         return;
       }
-      // Module header → only toggle accordion
       const riskBtn = e.target.closest('.truvala-risk-module-btn');
       if (riskBtn) {
         const mod     = riskBtn.closest('.truvala-risk-module');
